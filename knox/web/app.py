@@ -252,6 +252,57 @@ def api_device(mac: str):
     return jsonify(data)
 
 
+def _presence_heatmap(store, mac: str, days: int = 14) -> list:
+    """7x24 grid [weekday][hour] of relative online intensity (0..1), from
+    sessions over the last ``days``, bucketed in the server's local time."""
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=days)
+    grid = [[0] * 24 for _ in range(7)]
+    step = timedelta(minutes=15)
+    for s in store.sessions_since(mac, start.replace(microsecond=0).isoformat()):
+        try:
+            c = datetime.fromisoformat(s["connected_at"])
+            d = datetime.fromisoformat(s["disconnected_at"]) if s["disconnected_at"] else now
+        except (ValueError, TypeError):
+            continue
+        if c.tzinfo is None:
+            c = c.replace(tzinfo=timezone.utc)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        c = max(c, start)
+        d = min(d, now)
+        t = c
+        while t < d:
+            lt = t.astimezone()  # server local time for intuitive hour labels
+            grid[lt.weekday()][lt.hour] += 1
+            t += step
+    mx = max((max(row) for row in grid), default=0) or 1
+    return [[round(v / mx, 3) for v in row] for row in grid]
+
+
+@app.route("/api/device/<mac>/sessions")
+def api_sessions(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    sessions = [
+        {
+            "connected_at": s["connected_at"],
+            "disconnected_at": s["disconnected_at"],
+            "duration_secs": s["duration_secs"],
+            "online": s["disconnected_at"] is None,
+        }
+        for s in store.sessions_for(mac, 40)
+    ]
+    return jsonify(
+        {
+            "sessions": sessions,
+            "stats": store.session_stats(mac),
+            "heatmap": _presence_heatmap(store, mac),
+        }
+    )
+
+
 @app.route("/api/device/<mac>/traffic")
 def api_traffic(mac: str):
     store = get_store()

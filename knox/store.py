@@ -87,6 +87,16 @@ CREATE TABLE IF NOT EXISTS net_samples (
 );
 CREATE INDEX IF NOT EXISTS idx_net_samples_at ON net_samples(at);
 
+-- Per-device connect/disconnect sessions. disconnected_at NULL = still online.
+CREATE TABLE IF NOT EXISTS sessions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    mac             TEXT NOT NULL,
+    connected_at    TEXT NOT NULL,
+    disconnected_at TEXT,
+    duration_secs   INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_mac ON sessions(mac, connected_at);
+
 -- Per-device traffic flows: bytes/packets to each remote endpoint (M4).
 CREATE TABLE IF NOT EXISTS flows (
     mac         TEXT NOT NULL,
@@ -498,6 +508,82 @@ class Store:
             "GROUP BY f.mac ORDER BY bytes DESC LIMIT ?",
             (limit,),
         ).fetchall()
+
+    # --- Connect/disconnect sessions ----------------------------------------
+
+    def has_open_session(self, mac: str) -> bool:
+        return (
+            self.conn.execute(
+                "SELECT 1 FROM sessions WHERE mac = ? AND disconnected_at IS NULL LIMIT 1",
+                (mac.upper(),),
+            ).fetchone()
+            is not None
+        )
+
+    def open_session(self, mac: str, at: Optional[str] = None) -> None:
+        """Record a connect (no-op if a session is already open)."""
+        if self.has_open_session(mac):
+            return
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO sessions (mac, connected_at) VALUES (?, ?)",
+                (mac.upper(), at or now_iso()),
+            )
+
+    def close_session(self, mac: str, at: Optional[str] = None) -> None:
+        """Record a disconnect for the open session, computing its duration."""
+        at = at or now_iso()
+        row = self.conn.execute(
+            "SELECT id, connected_at FROM sessions WHERE mac = ? AND disconnected_at IS NULL "
+            "ORDER BY id DESC LIMIT 1",
+            (mac.upper(),),
+        ).fetchone()
+        if not row:
+            return
+        try:
+            c = datetime.fromisoformat(row["connected_at"])
+            d = datetime.fromisoformat(at)
+            dur = max(0, int((d - c).total_seconds()))
+        except (ValueError, TypeError):
+            dur = None
+        with self._write() as cur:
+            cur.execute(
+                "UPDATE sessions SET disconnected_at = ?, duration_secs = ? WHERE id = ?",
+                (at, dur, row["id"]),
+            )
+
+    def sessions_for(self, mac: str, limit: int = 40) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM sessions WHERE mac = ? ORDER BY connected_at DESC LIMIT ?",
+            (mac.upper(), limit),
+        ).fetchall()
+
+    def sessions_since(self, mac: str, since_iso: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT connected_at, disconnected_at FROM sessions WHERE mac = ? "
+            "AND (disconnected_at IS NULL OR disconnected_at >= ?) ORDER BY connected_at",
+            (mac.upper(), since_iso),
+        ).fetchall()
+
+    def session_stats(self, mac: str) -> dict:
+        r = self.conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(duration_secs), 0) AS total, "
+            "COALESCE(MAX(duration_secs), 0) AS longest FROM sessions "
+            "WHERE mac = ? AND disconnected_at IS NOT NULL",
+            (mac.upper(),),
+        ).fetchone()
+        open_ = self.conn.execute(
+            "SELECT connected_at FROM sessions WHERE mac = ? AND disconnected_at IS NULL "
+            "ORDER BY id DESC LIMIT 1",
+            (mac.upper(),),
+        ).fetchone()
+        return {
+            "count": r["n"],
+            "total_secs": r["total"],
+            "longest_secs": r["longest"],
+            "avg_secs": (r["total"] // r["n"] if r["n"] else 0),
+            "open_since": open_["connected_at"] if open_ else None,
+        }
 
     # --- Traffic (flows / bandwidth / DNS names) ----------------------------
 

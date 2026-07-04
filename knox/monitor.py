@@ -105,21 +105,29 @@ class Monitor:
                         "wan_down", "Internet connection lost.", severity="critical", dedup=False
                     )
 
-    def _record_net_sample(self) -> None:
+    def _presence_pass(self) -> None:
+        """Record the network-wide device count and reconcile connect/disconnect
+        sessions from each device's online/offline state."""
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
-        online = 0
         devices = self.store.devices()
+        online = 0
         for d in devices:
+            mac = d["mac"]
+            is_online = False
             try:
                 seen = datetime.fromisoformat(d["last_seen"])
                 if seen.tzinfo is None:
                     seen = seen.replace(tzinfo=timezone.utc)
-                if (now - seen).total_seconds() <= config.OFFLINE_AFTER:
-                    online += 1
+                is_online = (now - seen).total_seconds() <= config.OFFLINE_AFTER
             except (ValueError, TypeError):
                 pass
+            if is_online:
+                online += 1
+                self.store.open_session(mac)          # connect (no-op if already open)
+            elif self.store.has_open_session(mac):
+                self.store.close_session(mac, d["last_seen"])  # disconnect at last sighting
         self.store.add_net_sample(online, len(devices))
 
     def tick(self) -> int:
@@ -129,7 +137,7 @@ class Monitor:
         alerted = self.alerts.process(hosts)
         if alerted:
             log.info("new devices this cycle: %s", ", ".join(alerted))
-        self._record_net_sample()
+        self._presence_pass()
 
         # Periodic nmap of known hosts, spaced by NMAP_INTERVAL.
         if self._elapsed - self._last_nmap >= config.NMAP_INTERVAL or self._last_nmap == 0:

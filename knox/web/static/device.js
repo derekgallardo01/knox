@@ -151,11 +151,60 @@ async function toggleBlock() {
   loadDevice();
 }
 
+function fmtDur(secs) {
+  if (secs == null) return "—";
+  const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m`;
+  return `${secs}s`;
+}
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function renderHeatmap(grid) {
+  if (!grid || !grid.length) return '<div class="muted">No presence data yet.</div>';
+  let html = '<div class="heatmap">';
+  html += '<div class="hm-row hm-hours"><span class="hm-day"></span>' +
+    Array.from({ length: 24 }, (_, h) => `<span class="hm-cell hm-hour">${h % 6 === 0 ? h : ""}</span>`).join("") + "</div>";
+  grid.forEach((row, di) => {
+    html += `<div class="hm-row"><span class="hm-day">${DAYS[di]}</span>` +
+      row.map((v) => `<span class="hm-cell" style="background:${heatColor(v)}" title="${Math.round(v * 100)}%"></span>`).join("") +
+      "</div>";
+  });
+  return html + "</div>";
+}
+
+function heatColor(v) {
+  if (v <= 0) return "var(--bg-elev)";
+  // accent-blue with alpha scaled by intensity
+  const a = 0.15 + v * 0.85;
+  return `rgba(88,166,255,${a.toFixed(2)})`;
+}
+
+async function loadSessions() {
+  const s = await (await fetch(`/api/device/${encodeURIComponent(MAC)}/sessions`)).json();
+  if (s.error) return;
+  const st = s.stats;
+  const cur = st.open_since ? `online since ${fmtTime(st.open_since)}` : "offline";
+  document.getElementById("conn-stats").textContent =
+    `${st.count} sessions · avg ${fmtDur(st.avg_secs)} · longest ${fmtDur(st.longest_secs)} · ${cur}`;
+  document.getElementById("heatmap").innerHTML = renderHeatmap(s.heatmap);
+  document.getElementById("session-log").innerHTML = s.sessions.length
+    ? `<table class="ports-table"><thead><tr><th>Connected</th><th>Disconnected</th><th>Duration</th></tr></thead>
+       <tbody>${s.sessions.map((x) => `<tr>
+         <td>${esc(fmtTime(x.connected_at))}</td>
+         <td>${x.online ? '<span class="online">online now</span>' : esc(fmtTime(x.disconnected_at))}</td>
+         <td>${x.online ? "—" : fmtDur(x.duration_secs)}</td></tr>`).join("")}</tbody></table>`
+    : '<div class="muted">No connection history yet — it builds as the monitor runs.</div>';
+}
+
 function refresh() {
   loadDevice().catch(() => {});
   loadTimeline().catch(() => {});
   loadTraffic().catch(() => {});
   loadDomains().catch(() => {});
+  loadSessions().catch(() => {});
 }
 
 document.getElementById("tl-range").addEventListener("click", (e) => {

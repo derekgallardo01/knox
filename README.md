@@ -38,6 +38,10 @@ with nmap, and shows everything on a local web dashboard.
 - **History & presence** — per-device detail page with a presence timeline +
   uptime %, a "who's home" strip (grouped by owner), and internet/WAN uptime
   monitoring with up/down alerts.
+- **Connection log** — per-device connect/disconnect sessions with durations,
+  uptime stats (avg/longest session, current status), and a 7×24 presence
+  heatmap (when a device is typically online). Foundation for presence-anomaly
+  alerts.
 - **Overview page** — network trends: devices-online over time, bandwidth,
   network-wide top DNS domains, and top talkers.
 - **OS fingerprint & actions** — nmap `-O` OS guess per device, Wake-on-LAN,
