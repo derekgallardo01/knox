@@ -153,8 +153,36 @@ class Monitor:
         if self._elapsed - self._last_nmap >= config.NMAP_INTERVAL or self._last_nmap == 0:
             self._nmap_known_hosts()
             self._prune_bw()
+            self._check_usage()
             self._last_nmap = self._elapsed
         return len(hosts)
+
+    def _check_usage(self) -> None:
+        """Alert on any device exceeding the daily data cap (once/device/day)."""
+        if config.USAGE_ALERT_GB <= 0:
+            return
+        from datetime import datetime, timedelta, timezone
+
+        now = datetime.now(timezone.utc)
+        since_24h = (now - timedelta(hours=24)).replace(microsecond=0).isoformat()
+        dedup_since = (now - timedelta(hours=20)).replace(microsecond=0).isoformat()
+        threshold = config.USAGE_ALERT_GB * 1_000_000_000
+        for d in self.store.devices():
+            usage = self.store.device_usage(d["mac"], since_24h)
+            if usage["total"] < threshold:
+                continue
+            if self.store.recent_alert_exists("high_usage", d["mac"], dedup_since):
+                continue
+            name = d["label"] or d["hostname"] or d["vendor"] or d["mac"]
+            gb = usage["total"] / 1e9
+            self.alerts.raise_alert(
+                "high_usage",
+                f"{name} used {gb:.1f} GB in 24h (over {config.USAGE_ALERT_GB} GB cap): "
+                f"{usage['down'] / 1e9:.1f} GB down / {usage['up'] / 1e9:.1f} GB up.",
+                mac=d["mac"],
+                severity="warning",
+                dedup=False,
+            )
 
     def _prune_bw(self) -> None:
         from datetime import datetime, timedelta, timezone

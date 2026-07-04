@@ -357,6 +357,17 @@ class Store:
             )
             return cur.lastrowid
 
+    def recent_alert_exists(self, type_: str, mac: Optional[str], since_iso: str) -> bool:
+        """True if an alert of this type/mac was created at/after ``since_iso``."""
+        return (
+            self.conn.execute(
+                "SELECT 1 FROM alerts WHERE type = ? AND ifnull(mac,'') = ? "
+                "AND created_at >= ? LIMIT 1",
+                (type_, mac.upper() if mac else "", since_iso),
+            ).fetchone()
+            is not None
+        )
+
     def alert_exists(self, type_: str, mac: Optional[str], message: str) -> bool:
         """True if an identical alert already exists (for de-duplication)."""
         return (

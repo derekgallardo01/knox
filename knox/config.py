@@ -153,6 +153,10 @@ ROUTER_POLL = int(_env("KNOX_ROUTER_POLL", "30"))  # seconds between client-list
 # How long to keep per-device bandwidth samples (days) before pruning.
 BW_RETENTION_DAYS = int(_env("KNOX_BW_RETENTION_DAYS", "30"))
 
+# Alert if any single device uses more than this many GB in a rolling 24h
+# window (0 = off). Fires at most once per device per day.
+USAGE_ALERT_GB = float(_env("KNOX_USAGE_ALERT_GB", "0"))
+
 
 def ensure_dirs() -> None:
     """Create the data directory if it doesn't exist yet."""

@@ -132,6 +132,7 @@ variables (see [`knox/config.py`](knox/config.py)):
 | `KNOX_NTFY_TOPIC` | — | ntfy topic for phone push alerts (blank = off) |
 | `KNOX_PASSWORD` | — | Dashboard login password (blank = no auth) |
 | `KNOX_WAN_CHECK` | `1` | Monitor internet reachability (up/down alerts) |
+| `KNOX_USAGE_ALERT_GB` | `0` | Alert if a device uses more than N GB/24h (0 = off) |
 | `KNOX_SCAN_INTERVAL` | `60` | Seconds between discovery sweeps |
 | `KNOX_OFFLINE_AFTER` | `180` | Seconds without a sighting → offline |
 | `KNOX_NMAP_INTERVAL` | `1800` | Seconds between nmap sweeps of known hosts |
