@@ -156,7 +156,22 @@ function renderDetail(mac) {
       </tr>`).join("")}</tbody>
     </table>`;
   }
-  return `<div class="detail-body">${meta}<div class="detail-ports"><b>Open ports / services</b>${portsHtml}</div></div>`;
+
+  const hints = det.hints || [];
+  let hintsHtml = "";
+  if (hints.length) {
+    hintsHtml = `<div class="detail-hints"><b>Identified via (passive)</b>
+      <table class="ports-table">
+        <thead><tr><th>Source</th><th>Field</th><th>Value</th></tr></thead>
+        <tbody>${hints.map((h) => `<tr>
+          <td><span class="src-badge src-${esc(h.source)}">${esc(h.source)}</span></td>
+          <td class="muted">${esc(h.key)}</td>
+          <td class="mono">${esc(h.value)}</td>
+        </tr>`).join("")}</tbody>
+      </table></div>`;
+  }
+
+  return `<div class="detail-body">${meta}<div class="detail-ports"><b>Open ports / services</b>${portsHtml}</div>${hintsHtml}</div>`;
 }
 
 // --- rendering -------------------------------------------------------------

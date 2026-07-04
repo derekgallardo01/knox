@@ -92,6 +92,10 @@ def api_device(mac: str):
         }
         for p in store.ports_for(mac)
     ]
+    data["hints"] = [
+        {"source": h["source"], "key": h["key"], "value": h["value"], "seen_at": h["seen_at"]}
+        for h in store.hints_for(mac)
+    ]
     return jsonify(data)
 
 

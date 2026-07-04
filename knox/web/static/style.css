@@ -248,6 +248,17 @@ td.mono, .mono { font-family: ui-monospace, "Cascadia Code", "Consolas", monospa
 .ports-table th, .ports-table td { padding: 0.35rem 0.8rem; font-size: 0.82rem; }
 .ports-table th { background: var(--panel); position: static; }
 
+.detail-hints > b { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin: 0.6rem 0 0.45rem; }
+.src-badge {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 0.05rem 0.4rem; border-radius: 5px; font-weight: 600;
+  background: var(--bg-elev); border: 1px solid var(--border); color: var(--muted);
+}
+.src-badge.src-dhcp { color: var(--online); border-color: rgba(63,185,80,0.4); }
+.src-badge.src-mdns { color: var(--accent); border-color: rgba(88,166,255,0.4); }
+.src-badge.src-ssdp { color: var(--warn); border-color: rgba(227,160,8,0.4); }
+.src-badge.src-nbns { color: var(--faint); }
+
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
 .dot.online { background: var(--online); box-shadow: 0 0 7px rgba(63,185,80,0.7); }
 .dot.offline { background: var(--offline); }

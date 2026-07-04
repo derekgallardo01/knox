@@ -64,6 +64,21 @@ WEB_HOST = _env("KNOX_WEB_HOST", "127.0.0.1")
 WEB_PORT = int(_env("KNOX_WEB_PORT", "5000"))
 
 
+# --- Passive listener ------------------------------------------------------
+# Continuously sniff broadcast/multicast traffic (mDNS/SSDP/DHCP/NBNS/ARP) to
+# auto-identify devices. Needs Npcap + admin on Windows. Set KNOX_PASSIVE=0 to
+# disable. SNIFF_IFACE is auto-selected (primary adapter) when blank.
+PASSIVE = _env("KNOX_PASSIVE", "1") == "1"
+SNIFF_IFACE = _env("KNOX_SNIFF_IFACE", "").strip()
+
+# BPF capture filter — broadcast/multicast discovery protocols only.
+SNIFF_FILTER = _env(
+    "KNOX_SNIFF_FILTER",
+    "arp or (udp and (port 5353 or port 1900 or port 67 or port 68 "
+    "or port 137 or port 5355))",
+)
+
+
 # --- Push notifications (ntfy) ---------------------------------------------
 # Off by default. Set KNOX_NTFY_TOPIC to a topic name to get phone pushes when
 # a new/unknown device joins. Install the free ntfy app and subscribe to the

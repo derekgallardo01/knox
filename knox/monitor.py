@@ -28,6 +28,7 @@ class Monitor:
         self.subnets = net.configured_subnets()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        self._listener = None
         self._last_nmap = 0.0
         # Track wall-clock via a monotonic counter seeded at start (Date/time
         # helpers in store use real UTC; here we only need relative spacing).
@@ -46,9 +47,19 @@ class Monitor:
             ", ".join(self.subnets),
             config.SCAN_INTERVAL,
         )
+        # Passive listener (auto-naming) runs alongside active scanning.
+        if config.PASSIVE:
+            from .listener import PassiveListener
+
+            self._listener = PassiveListener(store=self.store)
+            if not self._listener.start():
+                self._listener = None
+                log.info("continuing with active scanning only (no passive listener)")
 
     def stop(self) -> None:
         self._stop.set()
+        if self._listener:
+            self._listener.stop()
         if self._thread:
             self._thread.join(timeout=5)
 

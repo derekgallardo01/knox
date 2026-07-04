@@ -134,6 +134,45 @@ def cmd_nmap(args: argparse.Namespace) -> int:
     return rc
 
 
+def cmd_listen(args: argparse.Namespace) -> int:
+    import time
+
+    from .listener import PassiveListener, available
+    from .store import Store
+
+    if not available():
+        print(
+            "Passive listener unavailable: scapy/Npcap not usable. "
+            "Install Npcap and run as Administrator.",
+            file=sys.stderr,
+        )
+        return 2
+
+    store = Store()
+
+    def show(mac, ip, source, key, value):
+        print(f"  {source:<5} {key:<13} {mac}  {(ip or '-'):<15} {value}")
+
+    print(
+        "Passive listener running (Ctrl+C to stop). "
+        "Watching DHCP/mDNS/SSDP/NBNS/ARP...\n",
+        file=sys.stderr,
+    )
+    listener = PassiveListener(store=store, observer=show)
+    if not listener.start():
+        print("Could not start listener — run the terminal as Administrator.", file=sys.stderr)
+        return 2
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        listener.stop()
+        store.close()
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from .web.app import run_server
 
@@ -164,6 +203,9 @@ def build_parser() -> argparse.ArgumentParser:
     n = sub.add_parser("nmap", help="run an nmap port/service scan")
     n.add_argument("target", help="ip, mac, or 'all' for every known device")
     n.set_defaults(func=cmd_nmap)
+
+    li = sub.add_parser("listen", help="run the passive listener live (auto-naming)")
+    li.set_defaults(func=cmd_listen)
 
     v = sub.add_parser("serve", help="run monitor loop + web dashboard")
     v.add_argument("--no-monitor", action="store_true", help="dashboard only")

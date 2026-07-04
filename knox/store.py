@@ -52,6 +52,18 @@ CREATE TABLE IF NOT EXISTS alerts (
     created_at   TEXT NOT NULL,
     acknowledged INTEGER NOT NULL DEFAULT 0
 );
+
+-- Passive-listener evidence used to auto-identify devices. One row per
+-- (mac, source, key); latest value + timestamp kept.
+CREATE TABLE IF NOT EXISTS hints (
+    mac     TEXT NOT NULL,
+    source  TEXT NOT NULL,   -- dhcp | mdns | ssdp | nbns
+    key     TEXT NOT NULL,   -- hostname | vendor_class | service | server | name
+    value   TEXT NOT NULL,
+    seen_at TEXT NOT NULL,
+    PRIMARY KEY (mac, source, key)
+);
+CREATE INDEX IF NOT EXISTS idx_hints_mac ON hints(mac);
 """
 
 
@@ -119,9 +131,10 @@ class Store:
                     (mac, ip, hostname, vendor, ts, ts),
                 )
             else:
-                # Only overwrite hostname/vendor when we have a fresh value.
+                # COALESCE so a passive packet with no IP/hostname/vendor never
+                # wipes a value we already have (only fresh values overwrite).
                 cur.execute(
-                    "UPDATE devices SET ip = ?, last_seen = ?, "
+                    "UPDATE devices SET ip = COALESCE(?, ip), last_seen = ?, "
                     "hostname = COALESCE(?, hostname), "
                     "vendor = COALESCE(?, vendor) WHERE mac = ?",
                     (ip, ts, hostname, vendor, mac),
@@ -224,6 +237,37 @@ class Store:
         with self._write() as cur:
             cur.execute("UPDATE alerts SET acknowledged = 1 WHERE acknowledged = 0")
             return cur.rowcount
+
+    # --- Hints (passive-listener evidence) ----------------------------------
+
+    def add_hint(self, mac: str, source: str, key: str, value: str) -> bool:
+        """Record/refresh a passive identification hint.
+
+        Returns True if this is a new (mac, source, key) or the value changed.
+        """
+        if not value:
+            return False
+        mac = mac.upper()
+        value = value.strip()
+        existing = self.conn.execute(
+            "SELECT value FROM hints WHERE mac = ? AND source = ? AND key = ?",
+            (mac, source, key),
+        ).fetchone()
+        changed = existing is None or existing["value"] != value
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO hints (mac, source, key, value, seen_at) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(mac, source, key) DO UPDATE SET value = excluded.value, "
+                "seen_at = excluded.seen_at",
+                (mac, source, key, value, now_iso()),
+            )
+        return changed
+
+    def hints_for(self, mac: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM hints WHERE mac = ? ORDER BY source, key", (mac.upper(),)
+        ).fetchall()
 
     def unacknowledged_count(self) -> int:
         row = self.conn.execute(
