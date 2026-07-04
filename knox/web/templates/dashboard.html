@@ -72,6 +72,7 @@
         <h2>Devices</h2>
         <div class="controls">
           <input id="search" type="search" placeholder="Search IP, MAC, name, vendor…" />
+          <label class="group-check"><input type="checkbox" id="group-toggle" checked /> Group duplicates</label>
           <div class="chips" id="filters">
             <button class="chip active" data-filter="all">All</button>
             <button class="chip" data-filter="online">Online</button>
@@ -84,8 +85,14 @@
         <table id="devices">
           <thead>
             <tr>
-              <th></th><th>Device</th><th>IP</th><th>MAC</th>
-              <th>Vendor</th><th class="num">Ports</th><th>Last seen</th><th></th>
+              <th></th>
+              <th class="sortable" data-sort="name">Device</th>
+              <th class="sortable" data-sort="ip">IP</th>
+              <th>MAC</th>
+              <th class="sortable" data-sort="vendor">Vendor</th>
+              <th class="num sortable" data-sort="ports">Ports</th>
+              <th class="sortable" data-sort="last_seen">Last seen</th>
+              <th></th>
             </tr>
           </thead>
           <tbody><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>

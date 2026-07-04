@@ -176,6 +176,10 @@ class Store:
         Returns ``True`` if this MAC was never seen before (a new device),
         ``False`` if it already existed.
         """
+        from .discovery import valid_device_mac
+
+        if not valid_device_mac(mac):
+            return False  # never record null/broadcast/multicast pseudo-devices
         mac = mac.upper()
         ts = now_iso()
         # Don't let a later scan downgrade a known vendor to Unknown/Private —

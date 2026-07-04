@@ -8,9 +8,45 @@ name. This never touches a user-set ``label`` — only the derived
 
 from __future__ import annotations
 
+import re
 from typing import Iterable, Optional
 
 from .vendors import infer_vendor, vendor_for
+
+
+def group_key(
+    label: Optional[str] = None,
+    hostname: Optional[str] = None,
+    owner: Optional[str] = None,
+    mac: Optional[str] = None,
+) -> str:
+    """A key that collapses the same physical device's multiple (randomized)
+    MACs into one logical device.
+
+    Priority: explicit ``owner`` > normalized name (label/hostname, alnum-only,
+    ``.lan`` stripped) > the MAC itself (its own group). Normalizing to
+    alnum-only lets a label ("Nacha's Galaxy S26 Ultra") and its reverse-DNS
+    hostname ("Nacha-s-Galaxy-S26-Ultra.lan") land in the same group.
+    """
+    if owner and owner.strip():
+        return "owner:" + owner.strip().lower()
+    # Only merge by name for RANDOMIZED (locally-administered) MACs — those are
+    # a phone cycling its MAC. Global/real-OUI MACs are distinct physical
+    # devices and must never merge just because they share a manual label.
+    randomized = False
+    if mac:
+        try:
+            randomized = bool(int(mac[:2], 16) & 0x02)
+        except ValueError:
+            randomized = False
+    if randomized:
+        base = (label or hostname or "").lower()
+        if base.endswith(".lan"):
+            base = base[: -len(".lan")]
+        norm = re.sub(r"[^a-z0-9]", "", base)
+        if norm:
+            return norm
+    return (mac or "").upper()
 
 # mDNS service type -> (maker or None, human role)
 _MDNS_SERVICES: dict[str, tuple[Optional[str], str]] = {

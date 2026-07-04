@@ -23,6 +23,7 @@ from flask import (
 )
 
 from .. import config, net
+from ..enrich import group_key
 from ..store import Store
 
 app = Flask(__name__)
@@ -97,19 +98,26 @@ def _age_seconds(iso: str) -> float:
     return (datetime.now(timezone.utc) - seen).total_seconds()
 
 
+def _row_get(row, key):
+    return row[key] if key in row.keys() else None
+
+
 def _device_dict(row, port_counts: dict) -> dict:
     online = _age_seconds(row["last_seen"]) <= config.OFFLINE_AFTER
+    owner = _row_get(row, "owner")
     return {
         "mac": row["mac"],
         "ip": row["ip"],
         "hostname": row["hostname"],
         "vendor": row["vendor"],
         "label": row["label"],
+        "owner": owner,
         "trusted": bool(row["trusted"]),
         "first_seen": row["first_seen"],
         "last_seen": row["last_seen"],
         "online": online,
         "ports": port_counts.get(row["mac"], 0),
+        "group": group_key(row["label"], row["hostname"], owner, row["mac"]),
     }
 
 

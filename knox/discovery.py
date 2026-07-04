@@ -23,6 +23,23 @@ from . import config, net
 from .vendors import infer_vendor, vendor_for
 
 
+def valid_device_mac(mac: str) -> bool:
+    """True if ``mac`` is a real unicast device MAC.
+
+    Rejects empty, the all-zero/broadcast MACs, and multicast frames
+    (``01:00:5E`` IPv4 multicast, ``33:33`` IPv6 multicast). Locally-administered
+    / randomized MACs (phones) ARE valid — they're real devices.
+    """
+    if not mac:
+        return False
+    mac = mac.upper()
+    if mac in ("00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF"):
+        return False
+    if mac.startswith(("FF:FF:FF", "01:00:5E", "33:33")):
+        return False
+    return True
+
+
 @dataclass
 class Host:
     ip: str
@@ -98,7 +115,7 @@ def _is_real_host(ip: str, mac: str, network: ipaddress.IPv4Network) -> bool:
     pseudo-entries (IPv4 multicast MACs start ``01:00:5E``, plus the all-ones
     broadcast). We only want real unicast hosts on the subnet being scanned.
     """
-    if mac.startswith(("FF:FF:FF", "01:00:5E", "33:33")) or mac == "00:00:00:00:00:00":
+    if not valid_device_mac(mac):
         return False
     try:
         addr = ipaddress.IPv4Address(ip)

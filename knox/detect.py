@@ -78,7 +78,9 @@ class DetectionEngine:
     # --- ARP feed ------------------------------------------------------------
 
     def on_arp(self, mac: str, ip: str) -> None:
-        if not mac or not ip or ip == "0.0.0.0":
+        from .discovery import valid_device_mac
+
+        if not valid_device_mac(mac) or not ip or ip == "0.0.0.0":
             return
         mac = mac.upper()
 

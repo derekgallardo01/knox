@@ -9,8 +9,11 @@ const state = {
   search: "",
   lastDevicesJSON: "",
   lastAlertsJSON: "",
-  expanded: new Set(), // MACs whose detail row is open
+  expanded: new Set(), // unit keys whose detail/member row is open
   details: {},         // mac -> full /api/device payload (ports etc.)
+  groupDupes: true,    // collapse a device's randomized MACs into one row
+  sort: { col: "last_seen", dir: "desc" },
+  offlineCollapsed: true,
 };
 
 // --- icons -----------------------------------------------------------------
@@ -119,12 +122,12 @@ async function loadDetail(mac) {
   renderDevices();
 }
 
-function toggleExpand(mac) {
-  if (state.expanded.has(mac)) {
-    state.expanded.delete(mac);
+function toggleExpand(key, mac) {
+  if (state.expanded.has(key)) {
+    state.expanded.delete(key);
   } else {
-    state.expanded.add(mac);
-    if (!state.details[mac]) loadDetail(mac); // lazy fetch
+    state.expanded.add(key);
+    if (mac && !state.details[mac]) loadDetail(mac); // lazy fetch (single device)
   }
   renderDevices();
 }
@@ -187,40 +190,91 @@ function matchesFilter(d) {
   return true;
 }
 
-function renderDevices() {
-  const tbody = document.querySelector("#devices tbody");
-  const rows = state.devices.filter(matchesFilter);
+function displayName(d) {
+  return d.label || d.hostname || (d.vendor && d.vendor !== "Unknown" ? d.vendor : "Unknown");
+}
 
-  if (!state.devices.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">No devices yet — a scan is running…</td></tr>';
-    return;
+// Collapse devices into "units": a group of one device's MACs, or a single one.
+function buildUnits(devs) {
+  if (!state.groupDupes) return devs.map((d) => ({ key: d.mac, members: [d], rep: d }));
+  const map = new Map();
+  for (const d of devs) {
+    const k = d.group || d.mac;
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(d);
   }
-  if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">No devices match this filter.</td></tr>';
-    return;
+  const units = [];
+  for (const [key, members] of map) {
+    const rep = members.find((m) => m.trusted) ||
+      members.slice().sort((a, b) => (b.last_seen || "").localeCompare(a.last_seen || ""))[0];
+    units.push({ key, members, rep });
   }
+  return units;
+}
 
-  tbody.innerHTML = rows.map((d) => {
-    const dot = d.online ? "online" : "offline";
-    const cls = classify(d);
-    const isGw = state.gateways.includes(d.ip);
-    const open = state.expanded.has(d.mac);
-    const displayName = d.label || d.hostname || (d.vendor && d.vendor !== "Unknown" ? d.vendor : "Unknown");
-    const statusTag = isGw
-      ? '<span class="tag gateway">gateway</span>'
-      : (d.trusted ? '<span class="tag trusted">trusted</span>' : '<span class="tag untrusted">unknown</span>');
-    const portCls = d.ports > 0 ? "pill-ports has" : "pill-ports";
-    const trustBtn = d.trusted
-      ? `<button class="row-btn" onclick="trust('${d.mac}', false)">Untrust</button>`
-      : `<button class="row-btn" onclick="trust('${d.mac}', true)">Trust</button>`;
-    const mainRow = `<tr class="dev-row ${open ? "open" : ""}" data-mac="${d.mac}">
-      <td><span class="dot ${dot}" title="${dot}"></span></td>
+const unitOnline = (u) => u.members.some((m) => m.online);
+const unitPorts = (u) => u.members.reduce((s, m) => s + (m.ports || 0), 0);
+const unitLastSeen = (u) => u.members.reduce((a, m) => (m.last_seen > a ? m.last_seen : a), "");
+
+function sortUnits(units) {
+  const { col, dir } = state.sort;
+  const mul = dir === "asc" ? 1 : -1;
+  const key = (u) => {
+    switch (col) {
+      case "name": return displayName(u.rep).toLowerCase();
+      case "ip": return (u.rep.ip || "").split(".").map((o) => o.padStart(3, "0")).join(".");
+      case "vendor": return (u.rep.vendor || "").toLowerCase();
+      case "ports": return unitPorts(u);
+      default: return unitLastSeen(u);
+    }
+  };
+  return units.sort((a, b) => {
+    const va = key(a), vb = key(b);
+    return va < vb ? -mul : va > vb ? mul : 0;
+  });
+}
+
+function memberList(u) {
+  return `<div class="member-list">${u.members.map((m) => {
+    const tb = m.trusted
+      ? `<button class="row-btn" onclick="trust('${m.mac}', false)">Untrust</button>`
+      : `<button class="row-btn" onclick="trust('${m.mac}', true)">Trust</button>`;
+    return `<div class="member-row">
+      <span class="dot ${m.online ? "online" : "offline"}"></span>
+      <span class="mono">${esc(m.ip || "—")}</span>
+      <span class="mono">${esc(m.mac)}</span>
+      <span class="muted">${m.online ? ago(m.last_seen) : "offline"}</span>
+      <span class="member-actions">${tb}<a class="row-btn" href="/device/${encodeURIComponent(m.mac)}">Details</a></span>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function unitRow(u) {
+  const d = u.rep;
+  const isGroup = u.members.length > 1;
+  const online = unitOnline(u);
+  const cls = classify(d);
+  const isGw = state.gateways.includes(d.ip);
+  const open = state.expanded.has(u.key);
+  const statusTag = isGw
+    ? '<span class="tag gateway">gateway</span>'
+    : (d.trusted ? '<span class="tag trusted">trusted</span>' : '<span class="tag untrusted">unknown</span>');
+  const countBadge = isGroup ? `<span class="tag count">×${u.members.length}</span>` : "";
+  const ports = unitPorts(u);
+  const portCls = ports > 0 ? "pill-ports has" : "pill-ports";
+  const lastSeen = unitLastSeen(u);
+  const trustBtn = d.trusted
+    ? `<button class="row-btn" onclick="trust('${d.mac}', false)">Untrust</button>`
+    : `<button class="row-btn" onclick="trust('${d.mac}', true)">Trust</button>`;
+  const macCell = isGroup ? `<span class="muted">${u.members.length} MACs</span>` : esc(d.mac);
+  const mainRow = `<tr class="dev-row ${open ? "open" : ""}" data-key="${esc(u.key)}" data-mac="${isGroup ? "" : esc(d.mac)}">
+      <td><span class="dot ${online ? "online" : "offline"}"></span></td>
       <td>
         <div class="device-cell">
           <span class="chevron ${open ? "open" : ""}">${icon("chevron")}</span>
           <span class="dev-icon ${isGw ? "gw" : ""}">${icon(cls.icon)}</span>
           <span class="dev-name">
-            <span class="name">${esc(displayName)} ${statusTag}
+            <span class="name">${esc(displayName(d))} ${countBadge} ${statusTag}
               <span class="edit" title="Rename" onclick="rename('${d.mac}', '${esc(d.label || "")}')">${icon("pencil", "sm")}</span>
             </span>
             <span class="role">${esc(cls.role)}</span>
@@ -228,17 +282,50 @@ function renderDevices() {
         </div>
       </td>
       <td class="mono">${esc(d.ip || "—")}</td>
-      <td class="mono">${esc(d.mac)}</td>
+      <td class="mono">${macCell}</td>
       <td>${esc(d.vendor || "—")}</td>
-      <td class="num"><span class="${portCls}">${d.ports || 0}</span></td>
-      <td class="muted" title="${esc(fmtTime(d.last_seen))}">${d.online ? ago(d.last_seen) : "offline"}</td>
+      <td class="num"><span class="${portCls}">${ports}</span></td>
+      <td class="muted" title="${esc(fmtTime(lastSeen))}">${online ? ago(lastSeen) : "offline"}</td>
       <td class="row-actions">${trustBtn}<a class="row-btn" href="/device/${encodeURIComponent(d.mac)}">Details</a></td>
     </tr>`;
-    const detailRow = open
-      ? `<tr class="detail-row"><td colspan="8">${renderDetail(d.mac)}</td></tr>`
-      : "";
-    return mainRow + detailRow;
-  }).join("");
+  let detailRow = "";
+  if (open) {
+    const inner = isGroup ? memberList(u) : renderDetail(d.mac);
+    detailRow = `<tr class="detail-row"><td colspan="8">${inner}</td></tr>`;
+  }
+  return mainRow + detailRow;
+}
+
+function renderDevices() {
+  const tbody = document.querySelector("#devices tbody");
+  updateSortCarets();
+  const filtered = state.devices.filter(matchesFilter);
+  if (!state.devices.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No devices yet — a scan is running…</td></tr>';
+    return;
+  }
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No devices match this filter.</td></tr>';
+    return;
+  }
+  const units = sortUnits(buildUnits(filtered));
+  const online = units.filter(unitOnline);
+  const offline = units.filter((u) => !unitOnline(u));
+  let html = online.map(unitRow).join("");
+  if (offline.length) {
+    html += `<tr class="offline-head ${state.offlineCollapsed ? "" : "open"}" data-offline>
+      <td colspan="8"><span class="chevron ${state.offlineCollapsed ? "" : "open"}">${icon("chevron")}</span>
+      Offline (${offline.length})</td></tr>`;
+    if (!state.offlineCollapsed) html += offline.map(unitRow).join("");
+  }
+  tbody.innerHTML = html;
+}
+
+function updateSortCarets() {
+  document.querySelectorAll("#devices thead th[data-sort]").forEach((th) => {
+    th.classList.toggle("sorted", th.dataset.sort === state.sort.col);
+    th.dataset.dir = th.dataset.sort === state.sort.col ? state.sort.dir : "";
+  });
 }
 
 async function loadDevices(force) {
@@ -366,9 +453,34 @@ document.getElementById("filters").addEventListener("click", (e) => {
 // Row click expands per-device detail; clicks on buttons/rename are ignored.
 document.querySelector("#devices tbody").addEventListener("click", (e) => {
   if (e.target.closest("button, a, .edit")) return;
+  if (e.target.closest("tr.offline-head")) {
+    state.offlineCollapsed = !state.offlineCollapsed;
+    renderDevices();
+    return;
+  }
   const tr = e.target.closest("tr.dev-row");
-  if (tr) toggleExpand(tr.dataset.mac);
+  if (tr) toggleExpand(tr.dataset.key, tr.dataset.mac || null);
 });
+
+document.querySelector("#devices thead").addEventListener("click", (e) => {
+  const th = e.target.closest("th[data-sort]");
+  if (!th) return;
+  const col = th.dataset.sort;
+  if (state.sort.col === col) {
+    state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+  } else {
+    state.sort = { col, dir: col === "last_seen" || col === "ports" ? "desc" : "asc" };
+  }
+  renderDevices();
+});
+
+const groupToggle = document.getElementById("group-toggle");
+if (groupToggle) {
+  groupToggle.addEventListener("change", (e) => {
+    state.groupDupes = e.target.checked;
+    renderDevices();
+  });
+}
 
 setInterval(() => refresh(false), REFRESH_MS);
 refresh(true);

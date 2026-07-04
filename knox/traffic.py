@@ -20,6 +20,7 @@ import time
 from typing import Optional
 
 from . import config, net
+from .discovery import valid_device_mac
 from .store import Store
 
 log = logging.getLogger("knox.traffic")
@@ -176,7 +177,7 @@ class TrafficSniffer:
             mac = None
             if pkt.haslayer(scapy.Ether):
                 mac = pkt[scapy.Ether].src if out else pkt[scapy.Ether].dst
-            if not mac:
+            if not valid_device_mac(mac or ""):
                 return
 
             proto, dport = "ip", 0

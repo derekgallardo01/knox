@@ -15,6 +15,7 @@ from typing import Iterable, Protocol
 
 from . import config
 from .discovery import Host
+from .enrich import group_key
 from .store import Store
 
 
@@ -139,6 +140,12 @@ class AlertManager:
             existed = self.store.get_device(h.mac) is not None
             is_new = self.store.upsert_device(h.mac, h.ip, h.hostname, h.vendor)
             if is_new and not existed:
+                # Suppress the alert if this is just a known device rotating its
+                # MAC: a trusted device shares its group. Inherit the trust.
+                gk = group_key(hostname=h.hostname, mac=h.mac)
+                if self._trusted_group_exists(gk):
+                    self.store.set_trusted(h.mac, True)
+                    continue
                 name = h.hostname or h.vendor or "unknown device"
                 self._emit(
                     "new_device",
@@ -147,3 +154,16 @@ class AlertManager:
                 )
                 alerted.append(h.mac)
         return alerted
+
+    def _trusted_group_exists(self, gk: str) -> bool:
+        """True if a trusted device already belongs to group ``gk`` (and gk is a
+        real name group, not a bare MAC — MACs are unique so never suppress)."""
+        if not gk or ":" in gk:  # bare-MAC group → never matches another device
+            return False
+        for d in self.store.devices():
+            if not d["trusted"]:
+                continue
+            if group_key(d["label"], d["hostname"],
+                         d["owner"] if "owner" in d.keys() else None, d["mac"]) == gk:
+                return True
+        return False
