@@ -7,16 +7,77 @@ Optionally starts the background :class:`knox.monitor.Monitor` so one
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import hashlib
+import hmac
+import secrets
+from datetime import datetime, timedelta, timezone
 
-from flask import Flask, jsonify, render_template, request
+from flask import (
+    Flask,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from .. import config, net
 from ..store import Store
 
 app = Flask(__name__)
+# Session signing key: explicit > derived-from-password (stable across restarts)
+# > random (fine, just logs users out on restart).
+if config.SECRET_KEY:
+    app.secret_key = config.SECRET_KEY
+elif config.PASSWORD:
+    app.secret_key = hashlib.sha256(("knox:" + config.PASSWORD).encode()).hexdigest()
+else:
+    app.secret_key = secrets.token_hex(16)
+
 _store: Store | None = None
 _monitor = None  # set in run_server when monitoring is enabled
+
+
+# --- Auth ------------------------------------------------------------------
+
+def _auth_required() -> bool:
+    return bool(config.PASSWORD)
+
+
+@app.before_request
+def _gate():
+    if not _auth_required():
+        return None
+    # Allow the login page and static assets through unauthenticated.
+    if request.endpoint in ("login", "static") or request.path.startswith("/static/"):
+        return None
+    if session.get("authed"):
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "unauthorized"}), 401
+    return redirect(url_for("login", next=request.path))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not _auth_required() or session.get("authed"):
+        return redirect(url_for("index"))
+    error = None
+    if request.method == "POST":
+        given = request.form.get("password", "")
+        if hmac.compare_digest(given, config.PASSWORD):
+            session["authed"] = True
+            session.permanent = True
+            return redirect(request.args.get("next") or url_for("index"))
+        error = "Incorrect password."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 def get_store() -> Store:
@@ -52,9 +113,89 @@ def _device_dict(row, port_counts: dict) -> dict:
     }
 
 
+def _wan_summary(store) -> dict:
+    """Current internet status + uptime % over the last 24h from wan_events.
+
+    wan_events records only transitions, so we integrate the up-time between
+    them. The period before the first recorded event is assumed to be in that
+    first event's state (best effort for a freshly-started monitor).
+    """
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(hours=24)
+    current = store.wan_current()
+    events = store.wan_events_since(window_start.replace(microsecond=0).isoformat())
+
+    if events:
+        state = bool(events[0]["up"])
+    else:
+        state = bool(current) if current is not None else True
+
+    up_seconds = 0.0
+    cursor = window_start
+    for e in events:
+        t = datetime.fromisoformat(e["at"])
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        t = max(t, window_start)
+        if state:
+            up_seconds += (t - cursor).total_seconds()
+        cursor = t
+        state = bool(e["up"])
+    if state:
+        up_seconds += (now - cursor).total_seconds()
+
+    total = (now - window_start).total_seconds()
+    pct = round(100.0 * up_seconds / total, 2) if total else 100.0
+    return {"up": current, "uptime_24h": max(0.0, min(100.0, pct))}
+
+
 @app.route("/")
 def index():
-    return render_template("dashboard.html", subnet=", ".join(net.configured_subnets()))
+    return render_template(
+        "dashboard.html",
+        subnet=", ".join(net.configured_subnets()),
+        auth=_auth_required(),
+    )
+
+
+@app.route("/device/<mac>")
+def device_page(mac: str):
+    store = get_store()
+    dev = store.get_device(mac)
+    if not dev:
+        return "Device not found", 404
+    return render_template("device.html", mac=mac.upper())
+
+
+@app.route("/api/device/<mac>/timeline")
+def api_timeline(mac: str):
+    """Presence buckets over a window: each bucket online if any sighting fell in it."""
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    hours = max(1, min(168, request.args.get("hours", 24, type=int)))
+    buckets = 96  # fixed resolution across the window
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(hours=hours)
+    span = (now - start).total_seconds()
+    width = span / buckets
+    seen = [False] * buckets
+    for ts in store.sightings_since(mac, start.replace(microsecond=0).isoformat()):
+        t = datetime.fromisoformat(ts)
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        idx = int((t - start).total_seconds() / width)
+        if 0 <= idx < buckets:
+            seen[idx] = True
+    online = sum(seen)
+    return jsonify(
+        {
+            "hours": hours,
+            "buckets": seen,
+            "uptime_pct": round(100.0 * online / buckets, 1),
+            "start": start.replace(microsecond=0).isoformat(),
+        }
+    )
 
 
 @app.route("/api/devices")
@@ -71,6 +212,7 @@ def api_devices():
             "open_ports": sum(d["ports"] for d in devices),
             "gateways": [net.gateway_ip(s) for s in net.configured_subnets()],
             "unacked_alerts": store.unacknowledged_count(),
+            "wan": _wan_summary(store),
         }
     )
 

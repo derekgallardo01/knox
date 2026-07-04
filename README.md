@@ -27,9 +27,13 @@ with nmap, and shows everything on a local web dashboard.
 - **Port & service scan** — nmap-based per-host scan for open ports, services,
   and versions.
 - **Multi-subnet** — scan several subnets at once (`KNOX_SUBNETS`).
+- **History & presence** — per-device detail page with a presence timeline +
+  uptime %, a "who's home" strip (phones/tablets online), and internet/WAN
+  uptime monitoring with up/down alerts.
 - **Web dashboard** — live device list with online/offline status, first/last
   seen, vendor/type icons, per-device detail (open ports + "Identified via"
   hints), and an alerts feed. Auto-refreshes; search/filter/trust/rename inline.
+  Optional password login (`KNOX_PASSWORD`) before exposing beyond localhost.
 
 ## How it finds devices
 
@@ -96,6 +100,8 @@ variables (see [`knox/config.py`](knox/config.py)):
 | `KNOX_PASSIVE` | `1` | Run the passive listener (mDNS/SSDP/DHCP/…) |
 | `KNOX_SNIFF_IFACE` | auto | Interface to sniff (blank = primary adapter) |
 | `KNOX_NTFY_TOPIC` | — | ntfy topic for phone push alerts (blank = off) |
+| `KNOX_PASSWORD` | — | Dashboard login password (blank = no auth) |
+| `KNOX_WAN_CHECK` | `1` | Monitor internet reachability (up/down alerts) |
 | `KNOX_SCAN_INTERVAL` | `60` | Seconds between discovery sweeps |
 | `KNOX_OFFLINE_AFTER` | `180` | Seconds without a sighting → offline |
 | `KNOX_NMAP_INTERVAL` | `1800` | Seconds between nmap sweeps of known hosts |

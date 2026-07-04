@@ -53,6 +53,21 @@ def _netmask_for(ip: str) -> Optional[str]:
     return None
 
 
+def internet_up(host: Optional[str] = None, port: Optional[int] = None, timeout: float = 3.0) -> bool:
+    """True if a TCP connection to a public host succeeds (internet reachable)."""
+    host = host or config.WAN_HOST
+    port = port or config.WAN_PORT
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        s.connect((host, port))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
 def detect_subnet() -> str:
     """Return the CIDR to scan, e.g. ``192.168.1.0/24``.
 

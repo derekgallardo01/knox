@@ -63,6 +63,19 @@ NMAP_ARGS = _env("KNOX_NMAP_ARGS", "-sV --top-ports 100 -T4")
 WEB_HOST = _env("KNOX_WEB_HOST", "127.0.0.1")
 WEB_PORT = int(_env("KNOX_WEB_PORT", "5000"))
 
+# Optional login gate. Blank = no auth (fine for localhost-only). Set a
+# password to require login — recommended before binding to 0.0.0.0.
+PASSWORD = _env("KNOX_PASSWORD", "")
+SECRET_KEY = _env("KNOX_SECRET_KEY", "").strip()
+
+
+# --- Internet / WAN monitor ------------------------------------------------
+# Periodically confirm the internet is reachable (TCP connect). Records up/down
+# transitions and alerts on them.
+WAN_CHECK = _env("KNOX_WAN_CHECK", "1") == "1"
+WAN_HOST = _env("KNOX_WAN_HOST", "1.1.1.1")
+WAN_PORT = int(_env("KNOX_WAN_PORT", "53"))
+
 
 # --- Passive listener ------------------------------------------------------
 # Continuously sniff broadcast/multicast traffic (mDNS/SSDP/DHCP/NBNS/ARP) to

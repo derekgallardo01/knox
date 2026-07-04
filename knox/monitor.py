@@ -67,8 +67,27 @@ class Monitor:
 
     # --- loop ----------------------------------------------------------------
 
+    def _check_wan(self) -> None:
+        """Confirm internet reachability; record + alert on up<->down changes."""
+        if not config.WAN_CHECK:
+            return
+        up = net.internet_up()
+        prev = self.store.wan_current()
+        if prev is None or prev != up:
+            self.store.add_wan_event(up)
+            if prev is not None:  # don't alert on the very first observation
+                if up:
+                    self.alerts.raise_alert(
+                        "wan_up", "Internet connection restored.", severity="info", dedup=False
+                    )
+                else:
+                    self.alerts.raise_alert(
+                        "wan_down", "Internet connection lost.", severity="critical", dedup=False
+                    )
+
     def tick(self) -> int:
         """Run one discovery+alert cycle. Returns the number of devices seen."""
+        self._check_wan()
         hosts = discover_all(self.subnets)
         alerted = self.alerts.process(hosts)
         if alerted:

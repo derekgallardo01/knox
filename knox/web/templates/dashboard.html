@@ -21,10 +21,17 @@
         <span class="sub">subnet <code>{{ subnet }}</code></span>
       </div>
     </div>
-    <div class="live" title="Auto-refreshing">
-      <span class="pulse"></span> live
+    <div class="header-right">
+      <span id="wan-pill" class="wan-pill" title="Internet status">WAN —</span>
+      {% if auth %}<a class="btn ghost" href="/logout">Sign out</a>{% endif %}
+      <div class="live" title="Auto-refreshing"><span class="pulse"></span> live</div>
     </div>
   </header>
+
+  <div id="presence" class="presence" hidden>
+    <span class="presence-label">Home:</span>
+    <span id="presence-list"></span>
+  </div>
 
   <!-- Baseline banner: appears when there are untrusted devices -->
   <div id="baseline" class="banner" hidden>

@@ -71,6 +71,13 @@ CREATE TABLE IF NOT EXISTS baseline (
     value      TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+-- Internet/WAN reachability transitions (one row per up<->down change).
+CREATE TABLE IF NOT EXISTS wan_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    up INTEGER NOT NULL,
+    at TEXT NOT NULL
+);
 """
 
 
@@ -318,6 +325,36 @@ class Store:
                 "updated_at = excluded.updated_at",
                 (key, value, now_iso()),
             )
+
+    # --- Sighting history ----------------------------------------------------
+
+    def sightings_since(self, mac: str, since_iso: str) -> list[str]:
+        """Timestamps (ISO) this MAC was seen at or after ``since_iso``."""
+        rows = self.conn.execute(
+            "SELECT seen_at FROM sightings WHERE mac = ? AND seen_at >= ? "
+            "ORDER BY seen_at",
+            (mac.upper(), since_iso),
+        ).fetchall()
+        return [r["seen_at"] for r in rows]
+
+    # --- WAN / internet uptime ----------------------------------------------
+
+    def wan_current(self) -> Optional[bool]:
+        row = self.conn.execute(
+            "SELECT up FROM wan_events ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return None if row is None else bool(row["up"])
+
+    def add_wan_event(self, up: bool) -> None:
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO wan_events (up, at) VALUES (?, ?)", (1 if up else 0, now_iso())
+            )
+
+    def wan_events_since(self, since_iso: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT up, at FROM wan_events WHERE at >= ? ORDER BY at", (since_iso,)
+        ).fetchall()
 
     def unacknowledged_count(self) -> int:
         row = self.conn.execute(

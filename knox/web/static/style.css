@@ -259,6 +259,64 @@ td.mono, .mono { font-family: ui-monospace, "Cascadia Code", "Consolas", monospa
 .src-badge.src-ssdp { color: var(--warn); border-color: rgba(227,160,8,0.4); }
 .src-badge.src-nbns { color: var(--faint); }
 
+/* --- Header extras: WAN pill, presence, back link ------------------------ */
+.header-right { display: flex; align-items: center; gap: 1rem; }
+.wan-pill {
+  font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted); background: var(--bg-elev);
+  text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap;
+}
+.wan-pill.up { color: var(--online); border-color: rgba(63,185,80,0.4); }
+.wan-pill.down { color: #fff; background: var(--danger); border-color: var(--danger); }
+
+.brand .back { display: inline-flex; color: var(--muted); }
+.brand .back:hover { color: var(--accent); }
+
+.presence {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.6rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--panel);
+  font-size: 0.85rem;
+}
+.presence-label { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.05em; }
+.presence .person {
+  display: inline-flex; align-items: center; gap: 0.35rem; margin-right: 0.5rem;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 0.15rem 0.6rem;
+}
+
+.row-actions { display: flex; gap: 0.4rem; align-items: center; }
+a.row-btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* --- Login page ---------------------------------------------------------- */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.login-card {
+  width: 100%; max-width: 340px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 2rem 1.75rem; text-align: center;
+  display: flex; flex-direction: column; gap: 0.7rem;
+}
+.login-logo { color: var(--accent); display: flex; justify-content: center; }
+.login-logo svg { width: 40px; height: 40px; }
+.login-card h1 { margin: 0.2rem 0 0; font-size: 1.5rem; }
+.login-card input {
+  background: var(--bg-elev); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 0.6rem 0.8rem; font: inherit; margin-top: 0.4rem;
+}
+.login-card input:focus { outline: none; border-color: var(--accent); }
+.login-card .btn { justify-content: center; padding: 0.55rem; }
+.login-error {
+  background: rgba(248,81,73,0.12); border: 1px solid rgba(248,81,73,0.4);
+  color: var(--danger); border-radius: 8px; padding: 0.5rem; font-size: 0.85rem;
+}
+
+/* --- Device page: timeline ----------------------------------------------- */
+.device-main { display: flex; flex-direction: column; gap: 1.25rem; }
+.timeline-wrap { padding: 1rem; }
+#timeline { display: flex; gap: 1px; height: 44px; border-radius: 6px; overflow: hidden; }
+.tl-cell { flex: 1 1 auto; min-width: 0; }
+.tl-cell.on { background: var(--online); }
+.tl-cell.off { background: var(--bg-elev); }
+.timeline-axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 0.72rem; margin-top: 0.4rem; }
+.stat-value .online { color: var(--online); }
+
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
 .dot.online { background: var(--online); box-shadow: 0 0 7px rgba(63,185,80,0.7); }
 .dot.offline { background: var(--offline); }

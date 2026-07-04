@@ -232,7 +232,7 @@ function renderDevices() {
       <td>${esc(d.vendor || "—")}</td>
       <td class="num"><span class="${portCls}">${d.ports || 0}</span></td>
       <td class="muted" title="${esc(fmtTime(d.last_seen))}">${d.online ? ago(d.last_seen) : "offline"}</td>
-      <td>${trustBtn}</td>
+      <td class="row-actions">${trustBtn}<a class="row-btn" href="/device/${encodeURIComponent(d.mac)}">Details</a></td>
     </tr>`;
     const detailRow = open
       ? `<tr class="detail-row"><td colspan="8">${renderDetail(d.mac)}</td></tr>`
@@ -251,6 +251,9 @@ async function loadDevices(force) {
   document.getElementById("s-untrusted").textContent = data.untrusted;
   document.getElementById("s-ports").textContent = data.open_ports;
   document.getElementById("s-alerts").textContent = data.unacked_alerts;
+
+  updateWan(data.wan);
+  updatePresence(data.devices);
 
   const banner = document.getElementById("baseline");
   if (data.untrusted > 0) {
@@ -307,6 +310,38 @@ async function loadAlerts(force) {
   }).join("");
 }
 
+function updateWan(wan) {
+  const pill = document.getElementById("wan-pill");
+  if (!pill || !wan) return;
+  if (wan.up === null || wan.up === undefined) {
+    pill.className = "wan-pill";
+    pill.textContent = "WAN —";
+  } else if (wan.up) {
+    pill.className = "wan-pill up";
+    pill.textContent = `WAN up · ${wan.uptime_24h}%`;
+  } else {
+    pill.className = "wan-pill down";
+    pill.textContent = "WAN DOWN";
+  }
+}
+
+function updatePresence(devices) {
+  // "People home" = phone/tablet devices currently online.
+  const people = devices.filter((d) => {
+    const r = classify(d).role;
+    return (r === "Phone" || r === "Tablet") && d.online;
+  });
+  const wrap = document.getElementById("presence");
+  const list = document.getElementById("presence-list");
+  if (!wrap || !list) return;
+  if (!people.length) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  list.innerHTML = people.map((d) => {
+    const name = d.label || d.hostname || d.vendor || d.mac;
+    return `<span class="person"><span class="dot online"></span>${esc(name)}</span>`;
+  }).join("");
+}
+
 function refresh(force) {
   loadDevices(force).catch(() => {});
   loadAlerts(force).catch(() => {});
@@ -330,7 +365,7 @@ document.getElementById("filters").addEventListener("click", (e) => {
 
 // Row click expands per-device detail; clicks on buttons/rename are ignored.
 document.querySelector("#devices tbody").addEventListener("click", (e) => {
-  if (e.target.closest("button, .edit")) return;
+  if (e.target.closest("button, a, .edit")) return;
   const tr = e.target.closest("tr.dev-row");
   if (tr) toggleExpand(tr.dataset.mac);
 });

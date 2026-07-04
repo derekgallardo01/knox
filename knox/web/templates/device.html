@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knox — Device</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <a class="back" href="/" title="Back to dashboard">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </a>
+      <div>
+        <h1 id="dev-title">Device</h1>
+        <span class="sub" id="dev-sub">—</span>
+      </div>
+    </div>
+    <div class="live"><span class="pulse"></span> live</div>
+  </header>
+
+  <main class="device-main" data-mac="{{ mac }}">
+    <section class="stats">
+      <div class="stat"><span class="stat-value" id="d-status">—</span><span class="stat-label">Status</span></div>
+      <div class="stat"><span class="stat-value" id="d-uptime">—</span><span class="stat-label">Uptime (24h)</span></div>
+      <div class="stat"><span class="stat-value" id="d-ports">—</span><span class="stat-label">Open ports</span></div>
+      <div class="stat"><span class="stat-value" id="d-first">—</span><span class="stat-label">First seen</span></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Presence — last <span id="tl-hours">24</span>h</h2>
+        <div class="chips" id="tl-range">
+          <button class="chip active" data-hours="24">24h</button>
+          <button class="chip" data-hours="72">3d</button>
+          <button class="chip" data-hours="168">7d</button>
+        </div>
+      </div>
+      <div class="timeline-wrap"><div id="timeline"></div><div class="timeline-axis"><span id="tl-start"></span><span>now</span></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Details</h2></div>
+      <div id="dev-detail" class="detail-body"></div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='device.js') }}"></script>
+</body>
+</html>
