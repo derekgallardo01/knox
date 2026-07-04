@@ -9,6 +9,7 @@ channels can be added later without touching detection logic.
 from __future__ import annotations
 
 import logging
+import urllib.request
 from logging.handlers import RotatingFileHandler
 from typing import Iterable, Protocol
 
@@ -49,12 +50,43 @@ class LogNotifier:
         self.logger.warning("[%s] %s", type_, message)
 
 
+class NtfyNotifier:
+    """Pushes alerts to an ntfy topic (phone notifications, works off-network).
+
+    Enabled by setting ``KNOX_NTFY_TOPIC``. Uses stdlib urllib so there's no
+    extra dependency. Header values must be latin-1, so the title is ASCII.
+    """
+
+    def __init__(self, topic: str, server: str = "https://ntfy.sh") -> None:
+        self.topic = topic
+        self.server = server.rstrip("/")
+
+    def notify(self, type_: str, message: str, mac: str | None = None) -> None:
+        title = "Knox: new device" if type_ == "new_device" else f"Knox: {type_}"
+        req = urllib.request.Request(
+            f"{self.server}/{self.topic}",
+            data=message.encode("utf-8"),
+            headers={"Title": title, "Priority": "high", "Tags": "warning,satellite"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            resp.read()
+
+
+def default_notifiers() -> list[Notifier]:
+    """Build the notifier list from config: log always, ntfy if configured."""
+    notifiers: list[Notifier] = [LogNotifier()]
+    if config.NTFY_TOPIC:
+        notifiers.append(NtfyNotifier(config.NTFY_TOPIC, config.NTFY_SERVER))
+    return notifiers
+
+
 class AlertManager:
     """Runs detection over discovery results and fans out to notifiers."""
 
     def __init__(self, store: Store, notifiers: Iterable[Notifier] | None = None):
         self.store = store
-        self.notifiers = list(notifiers) if notifiers else [LogNotifier()]
+        self.notifiers = list(notifiers) if notifiers else default_notifiers()
 
     def _emit(self, type_: str, message: str, mac: str | None = None) -> None:
         self.store.add_alert(mac, type_, message)

@@ -57,6 +57,14 @@ WEB_HOST = _env("KNOX_WEB_HOST", "127.0.0.1")
 WEB_PORT = int(_env("KNOX_WEB_PORT", "5000"))
 
 
+# --- Push notifications (ntfy) ---------------------------------------------
+# Off by default. Set KNOX_NTFY_TOPIC to a topic name to get phone pushes when
+# a new/unknown device joins. Install the free ntfy app and subscribe to the
+# same topic. Nothing is sent anywhere until a topic is configured.
+NTFY_SERVER = _env("KNOX_NTFY_SERVER", "https://ntfy.sh").rstrip("/")
+NTFY_TOPIC = _env("KNOX_NTFY_TOPIC", "").strip()
+
+
 def ensure_dirs() -> None:
     """Create the data directory if it doesn't exist yet."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
