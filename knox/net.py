@@ -53,6 +53,27 @@ def _netmask_for(ip: str) -> Optional[str]:
     return None
 
 
+def wake_on_lan(mac: str) -> bool:
+    """Send a Wake-on-LAN magic packet to ``mac`` (UDP broadcast). Returns
+    True if the packet was sent (no delivery guarantee)."""
+    hexmac = mac.replace(":", "").replace("-", "")
+    if len(hexmac) != 12:
+        return False
+    try:
+        payload = bytes.fromhex("FF" * 6 + hexmac * 16)
+    except ValueError:
+        return False
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.sendto(payload, ("255.255.255.255", 9))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
 def internet_up(host: Optional[str] = None, port: Optional[int] = None, timeout: float = 3.0) -> bool:
     """True if a TCP connection to a public host succeeds (internet reachable)."""
     host = host or config.WAN_HOST

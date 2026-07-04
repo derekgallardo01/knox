@@ -16,7 +16,7 @@ from . import config, net
 from .alerts import AlertManager
 from .detect import DetectionEngine
 from .discovery import discover_all
-from .scanner import NmapUnavailable, scan_host
+from .scanner import NmapUnavailable, os_guess, scan_host
 from .store import Store
 
 log = logging.getLogger("knox.monitor")
@@ -105,6 +105,23 @@ class Monitor:
                         "wan_down", "Internet connection lost.", severity="critical", dedup=False
                     )
 
+    def _record_net_sample(self) -> None:
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        online = 0
+        devices = self.store.devices()
+        for d in devices:
+            try:
+                seen = datetime.fromisoformat(d["last_seen"])
+                if seen.tzinfo is None:
+                    seen = seen.replace(tzinfo=timezone.utc)
+                if (now - seen).total_seconds() <= config.OFFLINE_AFTER:
+                    online += 1
+            except (ValueError, TypeError):
+                pass
+        self.store.add_net_sample(online, len(devices))
+
     def tick(self) -> int:
         """Run one discovery+alert cycle. Returns the number of devices seen."""
         self._check_wan()
@@ -112,6 +129,7 @@ class Monitor:
         alerted = self.alerts.process(hosts)
         if alerted:
             log.info("new devices this cycle: %s", ", ".join(alerted))
+        self._record_net_sample()
 
         # Periodic nmap of known hosts, spaced by NMAP_INTERVAL.
         if self._elapsed - self._last_nmap >= config.NMAP_INTERVAL or self._last_nmap == 0:
@@ -128,6 +146,11 @@ class Monitor:
                 ports = scan_host(dev["ip"])
                 self.store.replace_ports(dev["mac"], ports)
                 self.detect.on_ports(dev["mac"], dev["ip"], old_ports, ports)
+                # OS fingerprint once per device (nmap -O; needs admin).
+                if not (dev["os"] if "os" in dev.keys() else None):
+                    guess = os_guess(dev["ip"])
+                    if guess:
+                        self.store.set_os(dev["mac"], guess)
             except NmapUnavailable as e:
                 log.warning("nmap unavailable, skipping port scans: %s", e)
                 return  # no point retrying every host this cycle

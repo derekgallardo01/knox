@@ -210,6 +210,7 @@ function matchesFilter(d) {
   if (state.filter === "online" && !d.online) return false;
   if (state.filter === "offline" && d.online) return false;
   if (state.filter === "untrusted" && d.trusted) return false;
+  if (state.filter === "blocked" && !d.blocked) return false;
   if (state.search) {
     const hay = `${d.ip} ${d.mac} ${d.hostname || ""} ${d.vendor || ""} ${d.label || ""}`.toLowerCase();
     if (!hay.includes(state.search)) return false;
@@ -287,6 +288,7 @@ function unitRow(u) {
     ? '<span class="tag gateway">gateway</span>'
     : (d.trusted ? '<span class="tag trusted">trusted</span>' : '<span class="tag untrusted">unknown</span>');
   const countBadge = isGroup ? `<span class="tag count">×${u.members.length}</span>` : "";
+  const blockedTag = u.members.some((m) => m.blocked) ? '<span class="tag blocked">blocked</span>' : "";
   const ports = unitPorts(u);
   const portCls = ports > 0 ? "pill-ports has" : "pill-ports";
   const lastSeen = unitLastSeen(u);
@@ -304,7 +306,7 @@ function unitRow(u) {
           <span class="chevron ${open ? "open" : ""}">${icon("chevron")}</span>
           <span class="dev-icon ${isGw ? "gw" : ""}">${icon(cls.icon)}</span>
           <span class="dev-name">
-            <span class="name">${esc(displayName(d))} ${countBadge} ${statusTag}
+            <span class="name">${esc(displayName(d))} ${countBadge} ${statusTag} ${blockedTag}
               <span class="edit" title="Rename" onclick="rename('${d.mac}', '${esc(d.label || "")}')">${icon("pencil", "sm")}</span>
             </span>
             <span class="role">${esc(cls.role)}</span>

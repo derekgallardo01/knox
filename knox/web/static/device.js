@@ -18,8 +18,12 @@ async function loadDevice() {
   if (d.error) { document.getElementById("dev-title").textContent = "Device not found"; return; }
 
   const name = d.label || d.hostname || (d.vendor && d.vendor !== "Unknown" ? d.vendor : d.mac);
-  document.getElementById("dev-title").textContent = name;
+  document.getElementById("dev-title").innerHTML =
+    esc(name) + (d.blocked ? ' <span class="tag blocked">blocked</span>' : "");
   document.getElementById("dev-sub").innerHTML = `<span class="mono">${esc(d.ip || "—")}</span> · <span class="mono">${esc(d.mac)}</span>`;
+  deviceBlocked = d.blocked;
+  const bb = document.getElementById("block-btn");
+  if (bb) bb.textContent = d.blocked ? "Unblock" : "Block";
 
   document.getElementById("d-status").innerHTML = d.online
     ? '<span class="online">Online</span>' : '<span class="muted">Offline</span>';
@@ -133,6 +137,17 @@ async function setNotes() {
   const notes = prompt("Notes for this device:", "");
   if (notes === null) return;
   await post(`/api/device/${encodeURIComponent(MAC)}/notes`, { notes });
+  loadDevice();
+}
+let deviceBlocked = false;
+async function wake() {
+  const r = await (await fetch(`/api/device/${encodeURIComponent(MAC)}/wake`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).json();
+  const btn = document.getElementById("wake-btn");
+  btn.textContent = r.ok ? "Magic packet sent ✓" : "Wake failed";
+  setTimeout(() => (btn.textContent = "Wake (WoL)"), 2500);
+}
+async function toggleBlock() {
+  await post(`/api/device/${encodeURIComponent(MAC)}/block`, { blocked: !deviceBlocked });
   loadDevice();
 }
 

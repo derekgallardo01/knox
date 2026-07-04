@@ -66,6 +66,25 @@ def scan_host(ip: str, args: Optional[str] = None) -> list[dict]:
     return ports
 
 
+def os_guess(ip: str) -> Optional[str]:
+    """Best-effort OS name for ``ip`` via nmap ``-O`` (needs admin). None if
+    nmap is unavailable or no confident match."""
+    try:
+        scanner = _scanner()
+        scanner.scan(hosts=ip, arguments="-O -Pn --osscan-limit")
+    except NmapUnavailable:
+        raise
+    except Exception:
+        return None
+    if ip not in scanner.all_hosts():
+        return None
+    matches = scanner[ip].get("osmatch", [])
+    if matches:
+        best = matches[0]
+        return f"{best.get('name')} ({best.get('accuracy')}%)"
+    return None
+
+
 def _resolve_ip(store: Store, target: str) -> Optional[str]:
     """Map a MAC in the DB to its last-known IP; pass through anything else."""
     if ":" in target or "-" in target:  # looks like a MAC

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knox — Overview</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <a class="back" href="/" title="Back to dashboard">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </a>
+      <div><h1>Network Overview</h1><span class="sub">trends & top talkers</span></div>
+    </div>
+    <div class="header-right">
+      <div class="chips" id="ov-range">
+        <button class="chip active" data-hours="24">24h</button>
+        <button class="chip" data-hours="72">3d</button>
+        <button class="chip" data-hours="168">7d</button>
+      </div>
+      {% if auth %}<a class="btn ghost" href="/logout">Sign out</a>{% endif %}
+    </div>
+  </header>
+
+  <main class="overview-main">
+    <section class="panel">
+      <div class="panel-head"><h2>Devices online</h2><span class="muted" id="dev-now"></span></div>
+      <div class="chart-body"><div id="chart-devices"></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Network bandwidth</h2><span class="muted" id="bw-note"></span></div>
+      <div class="chart-body"><div id="chart-bw"></div></div>
+    </section>
+
+    <div class="overview-cols">
+      <section class="panel">
+        <div class="panel-head"><h2>Top domains</h2></div>
+        <div class="chart-body"><div id="top-domains"></div></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Top talkers</h2></div>
+        <div class="chart-body"><div id="top-talkers"></div></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='overview.js') }}"></script>
+</body>
+</html>

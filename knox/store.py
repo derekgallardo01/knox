@@ -79,6 +79,14 @@ CREATE TABLE IF NOT EXISTS wan_events (
     at TEXT NOT NULL
 );
 
+-- Network-wide device-count samples (one per monitor tick) for the overview.
+CREATE TABLE IF NOT EXISTS net_samples (
+    at     TEXT NOT NULL,
+    online INTEGER NOT NULL,
+    total  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_net_samples_at ON net_samples(at);
+
 -- Per-device traffic flows: bytes/packets to each remote endpoint (M4).
 CREATE TABLE IF NOT EXISTS flows (
     mac         TEXT NOT NULL,
@@ -450,6 +458,45 @@ class Store:
     def wan_events_since(self, since_iso: str) -> list[sqlite3.Row]:
         return self.conn.execute(
             "SELECT up, at FROM wan_events WHERE at >= ? ORDER BY at", (since_iso,)
+        ).fetchall()
+
+    # --- Network-wide samples + overview aggregates -------------------------
+
+    def add_net_sample(self, online: int, total: int) -> None:
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO net_samples (at, online, total) VALUES (?, ?, ?)",
+                (now_iso(), online, total),
+            )
+
+    def net_samples_since(self, since_iso: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT at, online, total FROM net_samples WHERE at >= ? ORDER BY at",
+            (since_iso,),
+        ).fetchall()
+
+    def bw_series_all_since(self, since_iso: str) -> list[sqlite3.Row]:
+        """Network-wide bandwidth: bytes per timestamp summed across devices."""
+        return self.conn.execute(
+            "SELECT at, SUM(bytes) AS bytes FROM bw_samples WHERE at >= ? "
+            "GROUP BY at ORDER BY at",
+            (since_iso,),
+        ).fetchall()
+
+    def top_domains_all(self, limit: int = 15) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT domain, SUM(count) AS count FROM dns_hits GROUP BY domain "
+            "ORDER BY count DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+
+    def top_talkers(self, limit: int = 15) -> list[sqlite3.Row]:
+        """Devices by total captured bytes, with a friendly name."""
+        return self.conn.execute(
+            "SELECT f.mac AS mac, COALESCE(d.label, d.hostname, d.vendor, f.mac) AS name, "
+            "SUM(f.bytes) AS bytes FROM flows f LEFT JOIN devices d ON d.mac = f.mac "
+            "GROUP BY f.mac ORDER BY bytes DESC LIMIT ?",
+            (limit,),
         ).fetchall()
 
     # --- Traffic (flows / bandwidth / DNS names) ----------------------------

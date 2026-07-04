@@ -36,8 +36,13 @@ with nmap, and shows everything on a local web dashboard.
   network — no mirror port required. Binding port 53 needs admin.
 - **Multi-subnet** — scan several subnets at once (`KNOX_SUBNETS`).
 - **History & presence** — per-device detail page with a presence timeline +
-  uptime %, a "who's home" strip (phones/tablets online), and internet/WAN
-  uptime monitoring with up/down alerts.
+  uptime %, a "who's home" strip (grouped by owner), and internet/WAN uptime
+  monitoring with up/down alerts.
+- **Overview page** — network trends: devices-online over time, bandwidth,
+  network-wide top DNS domains, and top talkers.
+- **OS fingerprint & actions** — nmap `-O` OS guess per device, Wake-on-LAN,
+  and a blocked/watchlist flag. Devices can be given an **owner** + **notes**;
+  randomized-MAC duplicates are grouped into one entry.
 - **Web dashboard** — live device list with online/offline status, first/last
   seen, vendor/type icons, per-device detail (open ports + "Identified via"
   hints), and an alerts feed. Auto-refreshes; search/filter/trust/rename inline.

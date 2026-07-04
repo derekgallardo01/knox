@@ -18,7 +18,11 @@
         <span class="sub" id="dev-sub">—</span>
       </div>
     </div>
-    <div class="live"><span class="pulse"></span> live</div>
+    <div class="header-right">
+      <button class="btn ghost" id="wake-btn" onclick="wake()">Wake (WoL)</button>
+      <button class="btn ghost" id="block-btn" onclick="toggleBlock()">Block</button>
+      <div class="live"><span class="pulse"></span> live</div>
+    </div>
   </header>
 
   <main class="device-main" data-mac="{{ mac }}">

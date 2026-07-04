@@ -302,6 +302,39 @@ def alerts_page():
     return render_template("alerts.html", auth=_auth_required())
 
 
+@app.route("/overview")
+def overview_page():
+    return render_template("overview.html", auth=_auth_required())
+
+
+@app.route("/api/overview")
+def api_overview():
+    store = get_store()
+    hours = max(1, min(168, request.args.get("hours", 24, type=int)))
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).replace(microsecond=0).isoformat()
+    return jsonify(
+        {
+            "hours": hours,
+            "devices_series": [
+                {"at": r["at"], "online": r["online"], "total": r["total"]}
+                for r in store.net_samples_since(since)
+            ],
+            "bandwidth_series": [
+                {"at": r["at"], "bytes": r["bytes"]} for r in store.bw_series_all_since(since)
+            ],
+            "top_domains": [
+                {"domain": r["domain"], "count": r["count"]} for r in store.top_domains_all(15)
+            ],
+            "top_talkers": [
+                {"mac": r["mac"], "name": r["name"], "bytes": r["bytes"]}
+                for r in store.top_talkers(15)
+            ],
+            "capture_on": config.CAPTURE,
+            "dns_on": config.DNS_SERVER,
+        }
+    )
+
+
 @app.route("/api/alerts")
 def api_alerts():
     store = get_store()
@@ -370,6 +403,25 @@ def api_notes(mac: str):
     notes = (request.json.get("notes") if request.is_json else "") or ""
     store.set_notes(mac, notes)
     return jsonify({"ok": True, "mac": mac.upper()})
+
+
+@app.route("/api/device/<mac>/block", methods=["POST"])
+def api_block(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    blocked = request.json.get("blocked", True) if request.is_json else True
+    store.set_blocked(mac, bool(blocked))
+    return jsonify({"ok": True, "mac": mac.upper(), "blocked": bool(blocked)})
+
+
+@app.route("/api/device/<mac>/wake", methods=["POST"])
+def api_wake(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    ok = net.wake_on_lan(mac)
+    return jsonify({"ok": ok, "mac": mac.upper()})
 
 
 @app.route("/api/devices/trust-all", methods=["POST"])
