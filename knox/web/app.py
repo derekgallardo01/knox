@@ -112,6 +112,9 @@ def _device_dict(row, port_counts: dict) -> dict:
         "vendor": row["vendor"],
         "label": row["label"],
         "owner": owner,
+        "notes": _row_get(row, "notes"),
+        "os": _row_get(row, "os"),
+        "blocked": bool(_row_get(row, "blocked")),
         "trusted": bool(row["trusted"]),
         "first_seen": row["first_seen"],
         "last_seen": row["last_seen"],
@@ -294,10 +297,22 @@ def api_domains(mac: str):
     )
 
 
+@app.route("/alerts")
+def alerts_page():
+    return render_template("alerts.html", auth=_auth_required())
+
+
 @app.route("/api/alerts")
 def api_alerts():
     store = get_store()
-    rows = store.alerts(limit=100)
+    rows = store.alerts(
+        limit=request.args.get("limit", 100, type=int),
+        offset=request.args.get("offset", 0, type=int),
+        severity=request.args.get("severity") or None,
+        type_=request.args.get("type") or None,
+        search=request.args.get("search") or None,
+        unacknowledged_only=request.args.get("unacked") == "1",
+    )
     return jsonify(
         {
             "alerts": [
@@ -311,7 +326,8 @@ def api_alerts():
                     "severity": (r["severity"] if "severity" in r.keys() else "warning"),
                 }
                 for r in rows
-            ]
+            ],
+            "types": store.alert_types(),
         }
     )
 
@@ -336,10 +352,44 @@ def api_label(mac: str):
     return jsonify({"ok": True, "mac": mac.upper(), "label": label.strip()})
 
 
+@app.route("/api/device/<mac>/owner", methods=["POST"])
+def api_owner(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    owner = (request.json.get("owner") if request.is_json else "") or ""
+    store.set_owner(mac, owner)
+    return jsonify({"ok": True, "mac": mac.upper(), "owner": owner.strip()})
+
+
+@app.route("/api/device/<mac>/notes", methods=["POST"])
+def api_notes(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    notes = (request.json.get("notes") if request.is_json else "") or ""
+    store.set_notes(mac, notes)
+    return jsonify({"ok": True, "mac": mac.upper()})
+
+
 @app.route("/api/devices/trust-all", methods=["POST"])
 def api_trust_all():
     n = get_store().trust_all()
     return jsonify({"ok": True, "trusted": n})
+
+
+@app.route("/api/devices/trust", methods=["POST"])
+def api_bulk_trust():
+    store = get_store()
+    body = request.json if request.is_json else {}
+    macs = body.get("macs", [])
+    trusted = bool(body.get("trusted", True))
+    n = 0
+    for mac in macs:
+        if store.get_device(mac):
+            store.set_trusted(mac, trusted)
+            n += 1
+    return jsonify({"ok": True, "count": n, "trusted": trusted})
 
 
 @app.route("/api/alerts/<int:alert_id>/ack", methods=["POST"])

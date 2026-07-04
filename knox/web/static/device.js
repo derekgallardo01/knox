@@ -32,8 +32,13 @@ async function loadDevice() {
   const meta = `<div class="detail-meta">
     <span><b>Vendor</b> ${esc(d.vendor || "—")}</span>
     <span><b>Hostname</b> ${esc(d.hostname || "—")}</span>
+    <span><b>OS</b> ${esc(d.os || "—")}</span>
     <span><b>Trusted</b> ${d.trusted ? "yes" : "no"}</span>
+    <span><b>Owner</b> ${esc(d.owner || "—")} <a class="editlink" onclick="setOwner('${esc(d.owner || "")}')">edit</a></span>
     <span><b>Last seen</b> ${esc(fmtTime(d.last_seen))}</span>
+  </div>
+  <div class="detail-notes"><b>Notes</b>
+    <div class="notes-text">${esc(d.notes || "—")} <a class="editlink" onclick="setNotes()">edit</a></div>
   </div>`;
   const portsTable = ports.length
     ? `<table class="ports-table"><thead><tr><th>Port</th><th>Proto</th><th>Service</th><th>Version</th></tr></thead>
@@ -113,6 +118,22 @@ async function loadDomains() {
          <td>${d.count}</td>
          <td class="muted">${esc(fmtTime(d.last_seen))}</td></tr>`).join("")}</tbody></table>`
     : '<div class="muted">No lookups yet. Point this device\'s DNS at Knox (KNOX_DNS_SERVER=1).</div>';
+}
+
+async function post(url, body) {
+  await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+async function setOwner(current) {
+  const owner = prompt("Assign an owner (person) for this device:", current || "");
+  if (owner === null) return;
+  await post(`/api/device/${encodeURIComponent(MAC)}/owner`, { owner });
+  loadDevice();
+}
+async function setNotes() {
+  const notes = prompt("Notes for this device:", "");
+  if (notes === null) return;
+  await post(`/api/device/${encodeURIComponent(MAC)}/notes`, { notes });
+  loadDevice();
 }
 
 function refresh() {

@@ -144,10 +144,18 @@ class Store:
 
     def _migrate(self) -> None:
         """Additive migrations for databases created by an earlier version."""
-        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(alerts)")}
-        if "severity" not in cols:
+        acols = {r["name"] for r in self.conn.execute("PRAGMA table_info(alerts)")}
+        if "severity" not in acols:
             self.conn.execute(
                 "ALTER TABLE alerts ADD COLUMN severity TEXT NOT NULL DEFAULT 'warning'"
+            )
+        dcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(devices)")}
+        for col in ("owner", "notes", "os"):
+            if col not in dcols:
+                self.conn.execute(f"ALTER TABLE devices ADD COLUMN {col} TEXT")
+        if "blocked" not in dcols:
+            self.conn.execute(
+                "ALTER TABLE devices ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0"
             )
 
     def close(self) -> None:
@@ -232,6 +240,22 @@ class Store:
                 "UPDATE devices SET label = ? WHERE mac = ?", (label, mac.upper())
             )
 
+    def _set_field(self, mac: str, field: str, value) -> None:
+        with self._write() as cur:
+            cur.execute(f"UPDATE devices SET {field} = ? WHERE mac = ?", (value, mac.upper()))
+
+    def set_owner(self, mac: str, owner: str) -> None:
+        self._set_field(mac, "owner", (owner or "").strip() or None)
+
+    def set_notes(self, mac: str, notes: str) -> None:
+        self._set_field(mac, "notes", notes or None)
+
+    def set_os(self, mac: str, os_name: str) -> None:
+        self._set_field(mac, "os", os_name or None)
+
+    def set_blocked(self, mac: str, blocked: bool = True) -> None:
+        self._set_field(mac, "blocked", 1 if blocked else 0)
+
     def get_device(self, mac: str) -> Optional[sqlite3.Row]:
         return self.conn.execute(
             "SELECT * FROM devices WHERE mac = ?", (mac.upper(),)
@@ -304,12 +328,39 @@ class Store:
             is not None
         )
 
-    def alerts(self, limit: int = 100, unacknowledged_only: bool = False) -> list[sqlite3.Row]:
-        q = "SELECT * FROM alerts"
+    def alerts(
+        self,
+        limit: int = 100,
+        unacknowledged_only: bool = False,
+        severity: Optional[str] = None,
+        type_: Optional[str] = None,
+        search: Optional[str] = None,
+        offset: int = 0,
+    ) -> list[sqlite3.Row]:
+        clauses, params = [], []
         if unacknowledged_only:
-            q += " WHERE acknowledged = 0"
-        q += " ORDER BY created_at DESC LIMIT ?"
-        return self.conn.execute(q, (limit,)).fetchall()
+            clauses.append("acknowledged = 0")
+        if severity:
+            clauses.append("severity = ?")
+            params.append(severity)
+        if type_:
+            clauses.append("type = ?")
+            params.append(type_)
+        if search:
+            clauses.append("(message LIKE ? OR ifnull(mac,'') LIKE ?)")
+            params += [f"%{search}%", f"%{search}%"]
+        q = "SELECT * FROM alerts"
+        if clauses:
+            q += " WHERE " + " AND ".join(clauses)
+        q += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params += [limit, offset]
+        return self.conn.execute(q, params).fetchall()
+
+    def alert_types(self) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT DISTINCT type FROM alerts ORDER BY type"
+        ).fetchall()
+        return [r["type"] for r in rows]
 
     def acknowledge_alert(self, alert_id: int) -> None:
         with self._write() as cur:

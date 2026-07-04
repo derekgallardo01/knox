@@ -14,6 +14,9 @@ const state = {
   groupDupes: true,    // collapse a device's randomized MACs into one row
   sort: { col: "last_seen", dir: "desc" },
   offlineCollapsed: true,
+  selected: new Set(), // macs selected for bulk actions
+  soundOn: localStorage.getItem("knox.sound") === "1",
+  seenAlertIds: null,  // set of alert ids we've already notified on
 };
 
 // --- icons -----------------------------------------------------------------
@@ -107,6 +110,30 @@ async function rename(mac, current) {
   const label = prompt("Name this device:", current || "");
   if (label === null) return;
   await post(`/api/device/${encodeURIComponent(mac)}/label`, { label });
+  refresh(true);
+}
+
+// --- bulk selection --------------------------------------------------------
+
+function updateBulkBar() {
+  const bar = document.getElementById("bulk-bar");
+  const n = state.selected.size;
+  bar.hidden = n === 0;
+  if (n) document.getElementById("bulk-count").textContent = `${n} selected`;
+}
+
+function clearSelection() {
+  state.selected.clear();
+  renderDevices();
+  updateBulkBar();
+}
+
+async function bulkTrust(trusted) {
+  const macs = [...state.selected];
+  if (!macs.length) return;
+  await post("/api/devices/trust", { macs, trusted });
+  state.selected.clear();
+  updateBulkBar();
   refresh(true);
 }
 
@@ -267,7 +294,10 @@ function unitRow(u) {
     ? `<button class="row-btn" onclick="trust('${d.mac}', false)">Untrust</button>`
     : `<button class="row-btn" onclick="trust('${d.mac}', true)">Trust</button>`;
   const macCell = isGroup ? `<span class="muted">${u.members.length} MACs</span>` : esc(d.mac);
+  const memberMacs = u.members.map((m) => m.mac);
+  const checked = memberMacs.every((m) => state.selected.has(m)) ? "checked" : "";
   const mainRow = `<tr class="dev-row ${open ? "open" : ""}" data-key="${esc(u.key)}" data-mac="${isGroup ? "" : esc(d.mac)}">
+      <td class="check-col"><input type="checkbox" class="row-check" data-macs="${esc(memberMacs.join(","))}" ${checked} /></td>
       <td><span class="dot ${online ? "online" : "offline"}"></span></td>
       <td>
         <div class="device-cell">
@@ -291,7 +321,7 @@ function unitRow(u) {
   let detailRow = "";
   if (open) {
     const inner = isGroup ? memberList(u) : renderDetail(d.mac);
-    detailRow = `<tr class="detail-row"><td colspan="8">${inner}</td></tr>`;
+    detailRow = `<tr class="detail-row"><td colspan="9">${inner}</td></tr>`;
   }
   return mainRow + detailRow;
 }
@@ -301,11 +331,11 @@ function renderDevices() {
   updateSortCarets();
   const filtered = state.devices.filter(matchesFilter);
   if (!state.devices.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">No devices yet — a scan is running…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No devices yet — a scan is running…</td></tr>';
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">No devices match this filter.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No devices match this filter.</td></tr>';
     return;
   }
   const units = sortUnits(buildUnits(filtered));
@@ -314,11 +344,12 @@ function renderDevices() {
   let html = online.map(unitRow).join("");
   if (offline.length) {
     html += `<tr class="offline-head ${state.offlineCollapsed ? "" : "open"}" data-offline>
-      <td colspan="8"><span class="chevron ${state.offlineCollapsed ? "" : "open"}">${icon("chevron")}</span>
+      <td colspan="9"><span class="chevron ${state.offlineCollapsed ? "" : "open"}">${icon("chevron")}</span>
       Offline (${offline.length})</td></tr>`;
     if (!state.offlineCollapsed) html += offline.map(unitRow).join("");
   }
   tbody.innerHTML = html;
+  updateBulkBar();
 }
 
 function updateSortCarets() {
@@ -365,6 +396,7 @@ async function loadAlerts(force) {
   const data = await res.json();
   const ul = document.getElementById("alerts");
 
+  notifyCritical(data.alerts);
   const unacked = data.alerts.filter((a) => !a.acknowledged).length;
   const badge = document.getElementById("alert-badge");
   badge.hidden = unacked === 0;
@@ -413,20 +445,86 @@ function updateWan(wan) {
 }
 
 function updatePresence(devices) {
-  // "People home" = phone/tablet devices currently online.
-  const people = devices.filter((d) => {
+  // "Home" = owners (people) with any phone/tablet online, else the device name.
+  const online = devices.filter((d) => {
     const r = classify(d).role;
     return (r === "Phone" || r === "Tablet") && d.online;
   });
+  const names = new Set();
+  for (const d of online) {
+    names.add(d.owner && d.owner.trim() ? d.owner.trim() : (d.label || d.hostname || d.vendor || d.mac));
+  }
   const wrap = document.getElementById("presence");
   const list = document.getElementById("presence-list");
   if (!wrap || !list) return;
-  if (!people.length) { wrap.hidden = true; return; }
+  if (!names.size) { wrap.hidden = true; return; }
   wrap.hidden = false;
-  list.innerHTML = people.map((d) => {
-    const name = d.label || d.hostname || d.vendor || d.mac;
-    return `<span class="person"><span class="dot online"></span>${esc(name)}</span>`;
-  }).join("");
+  list.innerHTML = [...names].map((n) =>
+    `<span class="person"><span class="dot online"></span>${esc(n)}</span>`).join("");
+}
+
+// --- theme + sound/desktop alerts ------------------------------------------
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("knox.theme", theme);
+  const btn = document.getElementById("theme-toggle");
+  if (btn) btn.textContent = theme === "light" ? "☀" : "☾";
+}
+
+function initTheme() {
+  applyTheme(localStorage.getItem("knox.theme") || "dark");
+  const btn = document.getElementById("theme-toggle");
+  if (btn) btn.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    applyTheme(cur === "light" ? "dark" : "light");
+  });
+}
+
+function initSound() {
+  const btn = document.getElementById("sound-toggle");
+  if (!btn) return;
+  const render = () => { btn.textContent = state.soundOn ? "🔔" : "🔕"; };
+  render();
+  btn.addEventListener("click", () => {
+    state.soundOn = !state.soundOn;
+    localStorage.setItem("knox.sound", state.soundOn ? "1" : "0");
+    if (state.soundOn && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+    render();
+  });
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = "sine"; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(); osc.stop(ctx.currentTime + 0.4);
+  } catch (e) { /* ignore */ }
+}
+
+function notifyCritical(alerts) {
+  // First load: seed the seen-set so we don't blast notifications on page open.
+  if (state.seenAlertIds === null) {
+    state.seenAlertIds = new Set(alerts.map((a) => a.id));
+    return;
+  }
+  const fresh = alerts.filter(
+    (a) => !a.acknowledged && a.severity === "critical" && !state.seenAlertIds.has(a.id));
+  for (const a of fresh) state.seenAlertIds.add(a.id);
+  if (!fresh.length || !state.soundOn) return;
+  beep();
+  if ("Notification" in window && Notification.permission === "granted") {
+    for (const a of fresh.slice(0, 3)) {
+      new Notification("Knox: critical alert", { body: a.message });
+    }
+  }
 }
 
 function refresh(force) {
@@ -450,9 +548,9 @@ document.getElementById("filters").addEventListener("click", (e) => {
   renderDevices();
 });
 
-// Row click expands per-device detail; clicks on buttons/rename are ignored.
+// Row click expands per-device detail; clicks on buttons/checkbox are ignored.
 document.querySelector("#devices tbody").addEventListener("click", (e) => {
-  if (e.target.closest("button, a, .edit")) return;
+  if (e.target.closest("button, a, .edit, .check-col")) return;
   if (e.target.closest("tr.offline-head")) {
     state.offlineCollapsed = !state.offlineCollapsed;
     renderDevices();
@@ -460,6 +558,25 @@ document.querySelector("#devices tbody").addEventListener("click", (e) => {
   }
   const tr = e.target.closest("tr.dev-row");
   if (tr) toggleExpand(tr.dataset.key, tr.dataset.mac || null);
+});
+
+// Checkbox selection (delegated change events).
+document.querySelector("#devices tbody").addEventListener("change", (e) => {
+  const cb = e.target.closest(".row-check");
+  if (!cb) return;
+  const macs = (cb.dataset.macs || "").split(",").filter(Boolean);
+  macs.forEach((m) => cb.checked ? state.selected.add(m) : state.selected.delete(m));
+  updateBulkBar();
+});
+
+document.getElementById("select-all").addEventListener("change", (e) => {
+  const on = e.target.checked;
+  document.querySelectorAll("#devices .row-check").forEach((cb) => {
+    (cb.dataset.macs || "").split(",").filter(Boolean).forEach((m) =>
+      on ? state.selected.add(m) : state.selected.delete(m));
+  });
+  renderDevices();
+  updateBulkBar();
 });
 
 document.querySelector("#devices thead").addEventListener("click", (e) => {
@@ -482,5 +599,7 @@ if (groupToggle) {
   });
 }
 
+initTheme();
+initSound();
 setInterval(() => refresh(false), REFRESH_MS);
 refresh(true);

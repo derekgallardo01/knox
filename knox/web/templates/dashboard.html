@@ -23,6 +23,8 @@
     </div>
     <div class="header-right">
       <span id="wan-pill" class="wan-pill" title="Internet status">WAN —</span>
+      <button class="icon-btn" id="sound-toggle" title="Alert sound / desktop notifications">🔕</button>
+      <button class="icon-btn" id="theme-toggle" title="Toggle light/dark">◐</button>
       {% if auth %}<a class="btn ghost" href="/logout">Sign out</a>{% endif %}
       <div class="live" title="Auto-refreshing"><span class="pulse"></span> live</div>
     </div>
@@ -81,10 +83,17 @@
           </div>
         </div>
       </div>
+      <div id="bulk-bar" class="bulk-bar" hidden>
+        <span id="bulk-count">0 selected</span>
+        <button class="btn primary" onclick="bulkTrust(true)">Trust selected</button>
+        <button class="btn" onclick="bulkTrust(false)">Untrust selected</button>
+        <button class="btn ghost" onclick="clearSelection()">Clear</button>
+      </div>
       <div class="table-wrap">
         <table id="devices">
           <thead>
             <tr>
+              <th class="check-col"><input type="checkbox" id="select-all" title="Select all" /></th>
               <th></th>
               <th class="sortable" data-sort="name">Device</th>
               <th class="sortable" data-sort="ip">IP</th>
@@ -95,7 +104,7 @@
               <th></th>
             </tr>
           </thead>
-          <tbody><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+          <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -103,7 +112,10 @@
     <section class="panel alerts-panel">
       <div class="panel-head">
         <h2>Alerts <span id="alert-badge" class="badge" hidden>0</span></h2>
-        <button class="btn ghost" id="dismiss-all" onclick="ackAll()" hidden>Dismiss all</button>
+        <div class="controls">
+          <a class="btn ghost" href="/alerts">View all</a>
+          <button class="btn ghost" id="dismiss-all" onclick="ackAll()" hidden>Dismiss all</button>
+        </div>
       </div>
       <ul id="alerts"><li class="empty">Loading…</li></ul>
     </section>

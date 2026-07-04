@@ -16,6 +16,26 @@
   --radius: 10px;
 }
 
+:root[data-theme="light"] {
+  --bg: #f4f6f9;
+  --bg-elev: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #eef1f5;
+  --border: #d4dae2;
+  --border-soft: #e6eaef;
+  --text: #1f2328;
+  --muted: #57606a;
+  --faint: #8b949e;
+  --accent: #0969da;
+  --online: #1a7f37;
+  --offline: #a0a8b3;
+  --warn: #9a6700;
+  --danger: #cf222e;
+}
+:root[data-theme="light"] body { background: var(--bg); }
+:root[data-theme="light"] header { background: rgba(255, 255, 255, 0.85); }
+:root[data-theme="light"] code { background: #eef1f5; }
+
 * { box-sizing: border-box; }
 
 html { scrollbar-gutter: stable; }
@@ -248,6 +268,36 @@ th.sortable.sorted[data-dir="desc"]::after { content: "▼"; }
 .member-row { display: grid; grid-template-columns: 16px 130px 160px 1fr auto; align-items: center; gap: 0.6rem; font-size: 0.85rem; padding: 0.25rem 0; border-bottom: 1px solid var(--border-soft); }
 .member-row:last-child { border-bottom: none; }
 .member-actions { display: flex; gap: 0.4rem; }
+
+/* Bulk select */
+.check-col { width: 34px; text-align: center; }
+.row-check, #select-all { accent-color: var(--accent); cursor: pointer; }
+.bulk-bar {
+  display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 1rem;
+  background: var(--panel-2); border-bottom: 1px solid var(--border);
+}
+.bulk-bar #bulk-count { color: var(--muted); font-size: 0.85rem; margin-right: auto; }
+
+/* Header icon buttons + theme/sound toggles */
+.icon-btn {
+  background: var(--bg-elev); border: 1px solid var(--border); color: var(--muted);
+  border-radius: 7px; width: 30px; height: 30px; cursor: pointer; font-size: 0.95rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--text); }
+
+/* Alerts page + device notes */
+.alerts-main { padding: 1.25rem 1.5rem 2rem; }
+.alerts-main #alerts-list { max-height: none; }
+#a-severity, #a-type {
+  background: var(--bg-elev); border: 1px solid var(--border); color: var(--text);
+  border-radius: 7px; padding: 0.4rem 0.6rem; font: inherit; font-size: 0.85rem;
+}
+.detail-notes { margin-top: 0.6rem; }
+.detail-notes > b { color: var(--faint); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 0.25rem; }
+.notes-text { font-size: 0.9rem; }
+.editlink { color: var(--accent); cursor: pointer; font-size: 0.8rem; margin-left: 0.35rem; }
+.editlink:hover { text-decoration: underline; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr.dev-row { cursor: pointer; }
 tbody tr.dev-row:hover { background: rgba(88, 166, 255, 0.05); }

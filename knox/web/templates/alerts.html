@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knox — Alerts</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <a class="back" href="/" title="Back to dashboard">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </a>
+      <div><h1>Alerts</h1><span class="sub" id="alerts-count">—</span></div>
+    </div>
+    <div class="header-right">
+      {% if auth %}<a class="btn ghost" href="/logout">Sign out</a>{% endif %}
+      <button class="btn ghost" id="ack-all">Dismiss all</button>
+    </div>
+  </header>
+
+  <main class="alerts-main">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="controls">
+          <input id="a-search" type="search" placeholder="Search alerts…" />
+          <select id="a-severity">
+            <option value="">All severities</option>
+            <option value="critical">Critical</option>
+            <option value="warning">Warning</option>
+            <option value="info">Info</option>
+          </select>
+          <select id="a-type"><option value="">All types</option></select>
+          <label class="group-check"><input type="checkbox" id="a-unacked" /> Unacknowledged only</label>
+        </div>
+      </div>
+      <ul id="alerts-list"><li class="empty">Loading…</li></ul>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='alerts.js') }}"></script>
+</body>
+</html>
