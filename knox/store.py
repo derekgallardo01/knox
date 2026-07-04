@@ -102,6 +102,11 @@ class Store:
         """
         mac = mac.upper()
         ts = now_iso()
+        # Don't let a later scan downgrade a known vendor to Unknown/Private —
+        # pass None so COALESCE keeps whatever we already resolved (or a manual
+        # override). New devices still record whatever we have.
+        if vendor in (None, "", "Unknown", "Private"):
+            vendor = None
         row = self.conn.execute(
             "SELECT mac FROM devices WHERE mac = ?", (mac,)
         ).fetchone()
