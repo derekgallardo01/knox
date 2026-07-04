@@ -216,7 +216,7 @@ def api_timeline(mac: str):
 def api_devices():
     store = get_store()
     counts = store.port_counts()
-    rates = store.rates_map()
+    rates = store.recent_rates()
     devices = [_device_dict(d, counts, rates) for d in store.devices()]
     return jsonify(
         {

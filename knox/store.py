@@ -707,6 +707,26 @@ class Store:
                 (mac.upper(), down_bps, up_bps, now_iso()),
             )
 
+    def recent_rates(self, window_secs: int = 120) -> dict:
+        """Smoothed per-device rate: average bytes/sec over the last window,
+        from bw_samples. Steadier than the raw last-poll delta (which blinks to
+        0 whenever a device pauses between the router's ~30-45s counter updates)."""
+        since = (
+            datetime.now(timezone.utc) - timedelta(seconds=window_secs)
+        ).replace(microsecond=0).isoformat()
+        rows = self.conn.execute(
+            "SELECT mac, SUM(down_bytes) AS d, SUM(up_bytes) AS u FROM bw_samples "
+            "WHERE at >= ? GROUP BY mac",
+            (since,),
+        ).fetchall()
+        return {
+            r["mac"]: {
+                "down_bps": int((r["d"] or 0) / window_secs),
+                "up_bps": int((r["u"] or 0) / window_secs),
+            }
+            for r in rows
+        }
+
     def rates_map(self, fresh_secs: int = 150) -> dict:
         """Latest per-MAC {down_bps, up_bps} that are newer than fresh_secs."""
         cutoff = (
