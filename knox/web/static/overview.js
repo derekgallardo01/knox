@@ -64,6 +64,16 @@ async function load() {
     fmtY: fmtBytes,
   });
 
+  const du = d.top_data_users || [];
+  document.getElementById("top-data-users").innerHTML = du.length
+    ? `<table class="ports-table"><thead><tr><th>Device</th><th>Down</th><th>Up</th><th>Total</th></tr></thead>
+       <tbody>${du.map((r) => `<tr>
+         <td class="mono">${esc(r.name)}</td>
+         <td class="bw-dn">${fmtBytes(r.down)}</td>
+         <td class="bw-up">${fmtBytes(r.up)}</td>
+         <td>${fmtBytes(r.bytes)}</td></tr>`).join("")}</tbody></table>`
+    : '<div class="muted">No usage recorded yet — the router poller records data as devices transfer.</div>';
+
   document.getElementById("top-domains").innerHTML = d.dns_on || d.top_domains.length
     ? barList(d.top_domains.map((r) => ({ name: r.domain, value: r.count })), "No domains yet.", (v) => v + "×")
     : '<div class="muted">DNS resolver off (KNOX_DNS_SERVER=1).</div>';

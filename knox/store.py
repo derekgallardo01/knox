@@ -187,6 +187,12 @@ class Store:
             self.conn.execute(
                 "ALTER TABLE devices ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0"
             )
+        bwcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(bw_samples)")}
+        for col in ("down_bytes", "up_bytes"):
+            if bwcols and col not in bwcols:
+                self.conn.execute(
+                    f"ALTER TABLE bw_samples ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
+                )
 
     def close(self) -> None:
         self.conn.close()
@@ -641,11 +647,45 @@ class Store:
         return row["b"] if row else 0
 
     def add_bw_sample(self, mac: str, nbytes: int) -> None:
+        """Record a total-bytes sample (direction unknown, e.g. capture)."""
         with self._write() as cur:
             cur.execute(
-                "INSERT INTO bw_samples (mac, at, bytes) VALUES (?, ?, ?)",
+                "INSERT INTO bw_samples (mac, at, bytes, down_bytes, up_bytes) "
+                "VALUES (?, ?, ?, 0, 0)",
                 (mac.upper(), now_iso(), nbytes),
             )
+
+    def add_bw_sample_dir(self, mac: str, down: int, up: int) -> None:
+        """Record a down/up bytes sample (e.g. from the router poller)."""
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO bw_samples (mac, at, bytes, down_bytes, up_bytes) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (mac.upper(), now_iso(), down + up, down, up),
+            )
+
+    def device_usage(self, mac: str, since_iso: str) -> dict:
+        """Total data used by a device since ``since_iso`` (bytes)."""
+        r = self.conn.execute(
+            "SELECT COALESCE(SUM(bytes),0) AS total, COALESCE(SUM(down_bytes),0) AS down, "
+            "COALESCE(SUM(up_bytes),0) AS up FROM bw_samples WHERE mac = ? AND at >= ?",
+            (mac.upper(), since_iso),
+        ).fetchone()
+        return {"total": r["total"], "down": r["down"], "up": r["up"]}
+
+    def top_data_users(self, since_iso: str, limit: int = 15) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT b.mac AS mac, COALESCE(d.label, d.hostname, d.vendor, b.mac) AS name, "
+            "SUM(b.bytes) AS bytes, SUM(b.down_bytes) AS down, SUM(b.up_bytes) AS up "
+            "FROM bw_samples b LEFT JOIN devices d ON d.mac = b.mac "
+            "WHERE b.at >= ? GROUP BY b.mac HAVING bytes > 0 ORDER BY bytes DESC LIMIT ?",
+            (since_iso, limit),
+        ).fetchall()
+
+    def prune_bw_samples(self, before_iso: str) -> int:
+        with self._write() as cur:
+            cur.execute("DELETE FROM bw_samples WHERE at < ?", (before_iso,))
+            return cur.rowcount
 
     def set_rate(self, mac: str, down_bps: int, up_bps: int) -> None:
         with self._write() as cur:
@@ -668,7 +708,8 @@ class Store:
 
     def bw_series(self, mac: str, since_iso: str) -> list[sqlite3.Row]:
         return self.conn.execute(
-            "SELECT at, bytes FROM bw_samples WHERE mac = ? AND at >= ? ORDER BY at",
+            "SELECT at, bytes, down_bytes, up_bytes FROM bw_samples "
+            "WHERE mac = ? AND at >= ? ORDER BY at",
             (mac.upper(), since_iso),
         ).fetchall()
 

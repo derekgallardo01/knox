@@ -44,10 +44,13 @@ with nmap, and shows everything on a local web dashboard.
   alerts.
 - **Overview page** — network trends: devices-online over time, bandwidth,
   network-wide top DNS domains, and top talkers.
-- **Per-device bandwidth (router)** — polls a Reyee/Ruijie router's local API
-  for every client's up/down counters and shows a live **↓/↑ rate column** on
-  the dashboard — real per-device bandwidth on a normal switched LAN, no mirror
-  port. Set `KNOX_ROUTER_PASSWORD` (in a gitignored `.env`).
+- **Per-device bandwidth & data usage (router)** — polls a Reyee/Ruijie
+  router's local API for every client's up/down counters: a live **↓/↑ rate
+  column** on the dashboard, per-device **data-used totals** (1h/24h/7d) + a
+  down/up history chart on the device page, and a network-wide **Top data
+  users** ranking. Real per-device bandwidth on a normal switched LAN, no
+  mirror port. Set `KNOX_ROUTER_PASSWORD` (in a gitignored `.env`). Samples
+  are pruned after `KNOX_BW_RETENTION_DAYS` (30).
 - **OS fingerprint & actions** — nmap `-O` OS guess per device, Wake-on-LAN,
   and a blocked/watchlist flag. Devices can be given an **owner** + **notes**;
   randomized-MAC duplicates are grouped into one entry.

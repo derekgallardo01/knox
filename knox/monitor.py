@@ -152,8 +152,22 @@ class Monitor:
         # Periodic nmap of known hosts, spaced by NMAP_INTERVAL.
         if self._elapsed - self._last_nmap >= config.NMAP_INTERVAL or self._last_nmap == 0:
             self._nmap_known_hosts()
+            self._prune_bw()
             self._last_nmap = self._elapsed
         return len(hosts)
+
+    def _prune_bw(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        before = (
+            datetime.now(timezone.utc) - timedelta(days=config.BW_RETENTION_DAYS)
+        ).replace(microsecond=0).isoformat()
+        try:
+            n = self.store.prune_bw_samples(before)
+            if n:
+                log.info("pruned %d old bandwidth samples", n)
+        except Exception:
+            log.debug("bw prune failed", exc_info=True)
 
     def _nmap_known_hosts(self) -> None:
         for dev in self.store.devices():

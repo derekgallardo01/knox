@@ -75,27 +75,45 @@ function fmtBytes(n) {
   return n.toFixed(1) + " " + u[i];
 }
 
-function sparkline(series) {
-  if (!series.length) return '<div class="muted">No bandwidth samples yet.</div>';
-  const vals = series.map((s) => s.bytes);
-  const max = Math.max(...vals, 1);
-  const w = 600, h = 60, step = w / Math.max(series.length - 1, 1);
-  const pts = vals.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="spark">
-    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
-  </svg>`;
+let bwHours = 24;
+
+// Down (green area) + up (blue line) bandwidth chart from bw samples.
+function bwChart(series) {
+  if (!series.length) return '<div class="muted">No bandwidth samples yet — the router poller records these as devices transfer.</div>';
+  const w = 700, h = 90, pad = 3;
+  const max = Math.max(...series.map((s) => Math.max(s.down || 0, s.up || 0)), 1);
+  const n = series.length;
+  const x = (i) => (n === 1 ? w / 2 : (i / (n - 1)) * (w - pad * 2) + pad);
+  const y = (v) => h - pad - (v / max) * (h - pad * 2);
+  const dLine = series.map((s, i) => `${x(i).toFixed(1)},${y(s.down || 0).toFixed(1)}`).join(" ");
+  const uLine = series.map((s, i) => `${x(i).toFixed(1)},${y(s.up || 0).toFixed(1)}`).join(" ");
+  const dArea = `${pad},${h - pad} ${dLine} ${w - pad},${h - pad}`;
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="ov-chart">
+      <polygon points="${dArea}" fill="var(--online)" fill-opacity="0.14"/>
+      <polyline points="${dLine}" fill="none" stroke="var(--online)" stroke-width="1.5"/>
+      <polyline points="${uLine}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+    </svg>
+    <div class="chart-axis"><span class="bw-dn">↓ download</span><span class="bw-up">↑ upload</span></div>`;
+}
+
+function usageBox(label, u) {
+  return `<div class="usage-box"><span class="usage-label">${label}</span>
+    <span class="usage-val"><span class="bw-dn">↓${fmtBytes(u.down)}</span> <span class="bw-up">↑${fmtBytes(u.up)}</span></span></div>`;
 }
 
 async function loadTraffic() {
-  const t = await (await fetch(`/api/device/${encodeURIComponent(MAC)}/traffic`)).json();
+  const t = await (await fetch(`/api/device/${encodeURIComponent(MAC)}/traffic?hours=${bwHours}`)).json();
   if (t.error) return;
   const panel = document.getElementById("traffic-panel");
-  // Show the panel if capture is on OR we already have data.
-  if (!t.capture_on && !t.flows.length) { panel.hidden = true; return; }
+  const hasUsage = t.usage && t.usage.d7 && t.usage.d7.total > 0;
+  if (!t.capture_on && !t.flows.length && !hasUsage) { panel.hidden = true; return; }
   panel.hidden = false;
-  document.getElementById("traffic-total").textContent =
-    t.total_bytes ? `${fmtBytes(t.total_bytes)} total` : (t.capture_on ? "capturing…" : "");
-  document.getElementById("bw-spark").innerHTML = sparkline(t.series);
+  const u = t.usage || {};
+  document.getElementById("bw-usage").innerHTML =
+    usageBox("Last hour", u.h1 || { down: 0, up: 0 }) +
+    usageBox("Last 24h", u.h24 || { down: 0, up: 0 }) +
+    usageBox("Last 7 days", u.d7 || { down: 0, up: 0 });
+  document.getElementById("bw-spark").innerHTML = bwChart(t.series);
   document.getElementById("flows").innerHTML = t.flows.length
     ? `<table class="ports-table"><thead><tr><th>Endpoint</th><th>Port</th><th>Proto</th><th>Data</th><th>Pkts</th></tr></thead>
        <tbody>${t.flows.map((f) => `<tr>
@@ -214,6 +232,15 @@ document.getElementById("tl-range").addEventListener("click", (e) => {
   b.classList.add("active");
   hours = parseInt(b.dataset.hours, 10);
   loadTimeline();
+});
+
+document.getElementById("bw-range").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip");
+  if (!b) return;
+  document.querySelectorAll("#bw-range .chip").forEach((c) => c.classList.remove("active"));
+  b.classList.add("active");
+  bwHours = parseInt(b.dataset.hours, 10);
+  loadTraffic();
 });
 
 setInterval(refresh, 5000);

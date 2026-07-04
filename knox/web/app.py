@@ -325,12 +325,26 @@ def api_traffic(mac: str):
         }
         for r in store.top_flows(mac, 25)
     ]
-    since = (datetime.now(timezone.utc) - timedelta(hours=6)).replace(microsecond=0).isoformat()
-    series = [{"at": r["at"], "bytes": r["bytes"]} for r in store.bw_series(mac, since)]
+    hours = max(1, min(168, request.args.get("hours", 24, type=int)))
+    now = datetime.now(timezone.utc)
+
+    def _since(h):
+        return (now - timedelta(hours=h)).replace(microsecond=0).isoformat()
+
+    series = [
+        {"at": r["at"], "bytes": r["bytes"], "down": r["down_bytes"], "up": r["up_bytes"]}
+        for r in store.bw_series(mac, _since(hours))
+    ]
     return jsonify(
         {
             "flows": flows,
             "series": series,
+            "hours": hours,
+            "usage": {
+                "h1": store.device_usage(mac, _since(1)),
+                "h24": store.device_usage(mac, _since(24)),
+                "d7": store.device_usage(mac, _since(24 * 7)),
+            },
             "total_bytes": store.device_bytes(mac),
             "capture_on": config.CAPTURE,
         }
@@ -385,6 +399,11 @@ def api_overview():
             "top_talkers": [
                 {"mac": r["mac"], "name": r["name"], "bytes": r["bytes"]}
                 for r in store.top_talkers(15)
+            ],
+            "top_data_users": [
+                {"mac": r["mac"], "name": r["name"], "bytes": r["bytes"],
+                 "down": r["down"], "up": r["up"]}
+                for r in store.top_data_users(since, 15)
             ],
             "capture_on": config.CAPTURE,
             "dns_on": config.DNS_SERVER,

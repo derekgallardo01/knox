@@ -405,6 +405,10 @@ a.row-btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* --- Device page: traffic ------------------------------------------------ */
 .traffic-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.bw-usage { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.usage-box { flex: 1 1 150px; background: var(--bg-elev); border: 1px solid var(--border-soft); border-radius: 8px; padding: 0.6rem 0.8rem; }
+.usage-label { display: block; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem; }
+.usage-val { font-size: 0.95rem; }
 #bw-spark .spark { width: 100%; height: 60px; background: var(--bg-elev); border-radius: 6px; }
 #traffic-total { font-size: 0.8rem; }
 

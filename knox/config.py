@@ -150,6 +150,9 @@ ROUTER_PASSWORD = _env("KNOX_ROUTER_PASSWORD", "")
 # on a matching cadence — shorter intervals mostly see no change (rate reads 0).
 ROUTER_POLL = int(_env("KNOX_ROUTER_POLL", "30"))  # seconds between client-list polls
 
+# How long to keep per-device bandwidth samples (days) before pruning.
+BW_RETENTION_DAYS = int(_env("KNOX_BW_RETENTION_DAYS", "30"))
+
 
 def ensure_dirs() -> None:
     """Create the data directory if it doesn't exist yet."""

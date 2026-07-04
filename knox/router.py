@@ -218,7 +218,7 @@ class RouterPoller:
                 d_up = up
             if d_down < 0:
                 d_down = down
-            self.store.add_bw_sample(mac, d_up + d_down)
+            self.store.add_bw_sample_dir(mac, d_down, d_up)
             self.store.set_rate(mac, int(d_down / dt), int(d_up / dt))
 
 

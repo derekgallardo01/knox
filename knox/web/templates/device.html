@@ -61,8 +61,15 @@
     </section>
 
     <section class="panel" id="traffic-panel" hidden>
-      <div class="panel-head"><h2>Traffic</h2><span class="muted" id="traffic-total"></span></div>
+      <div class="panel-head"><h2>Bandwidth &amp; data usage</h2>
+        <div class="chips" id="bw-range">
+          <button class="chip active" data-hours="24">24h</button>
+          <button class="chip" data-hours="72">3d</button>
+          <button class="chip" data-hours="168">7d</button>
+        </div>
+      </div>
       <div class="traffic-body">
+        <div id="bw-usage" class="bw-usage"></div>
         <div id="bw-spark"></div>
         <div id="flows"></div>
       </div>
