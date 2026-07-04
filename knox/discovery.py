@@ -24,18 +24,25 @@ from .vendors import infer_vendor, vendor_for
 
 
 def valid_device_mac(mac: str) -> bool:
-    """True if ``mac`` is a real unicast device MAC.
+    """True if ``mac`` is a real unicast device MAC (format-agnostic).
 
-    Rejects empty, the all-zero/broadcast MACs, and multicast frames
-    (``01:00:5E`` IPv4 multicast, ``33:33`` IPv6 multicast). Locally-administered
-    / randomized MACs (phones) ARE valid — they're real devices.
+    Normalizes separators, then rejects: wrong length, all-zero, all-ones
+    (broadcast), and any multicast (I/G bit of the first octet set — covers
+    ``01:00:5E``, ``33:33``, etc.). Locally-administered / randomized MACs
+    (phones) ARE valid — they're real devices.
     """
     if not mac:
         return False
-    mac = mac.upper()
-    if mac in ("00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF"):
+    hexonly = re.sub(r"[^0-9a-fA-F]", "", mac)
+    if len(hexonly) != 12:
         return False
-    if mac.startswith(("FF:FF:FF", "01:00:5E", "33:33")):
+    low = hexonly.lower()
+    if low == "000000000000" or low == "ffffffffffff":
+        return False
+    try:
+        if int(hexonly[:2], 16) & 0x01:  # I/G bit set => multicast/broadcast
+            return False
+    except ValueError:
         return False
     return True
 

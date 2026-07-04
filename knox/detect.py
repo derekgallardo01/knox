@@ -36,8 +36,7 @@ RISKY_PORTS: dict[int, tuple[str, str]] = {
     23: ("Telnet (cleartext)", "critical"),
     2323: ("Telnet/IoT (cleartext)", "critical"),
     25: ("SMTP", "warning"),
-    135: ("MSRPC", "warning"),
-    139: ("NetBIOS", "warning"),
+    # 135 (MSRPC) / 139 (NetBIOS) are on every Windows host — too noisy to flag.
     445: ("SMB", "warning"),
     512: ("rexec", "critical"),
     513: ("rlogin", "critical"),
