@@ -11,6 +11,34 @@ const state = {
   lastAlertsJSON: "",
 };
 
+// --- icons -----------------------------------------------------------------
+// Inline SVG (Lucide-style, MIT). Rendered via icon(); color = currentColor.
+
+const ICONS = {
+  router: '<rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6.01 18H6M10.01 18H10M15 10v4"/><path d="M17.84 7.17a4 4 0 0 0-5.66 0"/><path d="M20.66 4.34a8 8 0 0 0-11.31 0"/>',
+  wifi: '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.86a10 10 0 0 1 14 0"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  tv: '<rect width="20" height="15" x="2" y="7" rx="2"/><polyline points="17 2 12 7 7 2"/>',
+  gamepad: '<line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="6"/>',
+  speaker: '<rect width="16" height="20" x="4" y="2" rx="2"/><circle cx="12" cy="14" r="4"/><line x1="12" x2="12.01" y1="6" y2="6"/>',
+  smartphone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  tablet: '<rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  container: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  device: '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
+  join: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  check: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+};
+
+function icon(name, extra) {
+  const body = ICONS[name] || ICONS.device;
+  return `<svg class="icon ${extra || ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+    `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
 // --- helpers ---------------------------------------------------------------
 
 function esc(s) {
@@ -37,21 +65,21 @@ function ago(iso) {
 
 // Guess a device type + icon from vendor/hostname/role. Cosmetic only.
 function classify(d) {
-  if (d.ip && d.ip === state.gateway) return { icon: "🌐", role: "Router / gateway" };
+  if (d.ip && d.ip === state.gateway) return { icon: "router", role: "Router / gateway" };
   const hay = `${d.hostname || ""} ${d.vendor || ""} ${d.label || ""}`.toLowerCase();
   const has = (...xs) => xs.some((x) => hay.includes(x));
-  if (has("docker")) return { icon: "🐳", role: "Container host" };
-  if (has("reolink", "blink", "camera", "cam-", "wyze", "nest cam")) return { icon: "📷", role: "Camera" };
-  if (has("roku", "tcl", "-tv", "tv.", "firetv", "chromecast", "vizio", "appletv")) return { icon: "📺", role: "TV / streamer" };
-  if (has("xbox", "playstation", "-ps5", "nintendo")) return { icon: "🎮", role: "Game console" };
-  if (has("echo", "alexa", "sonos", "homepod")) return { icon: "🔊", role: "Smart speaker" };
-  if (has("pixel", "galaxy", "iphone", "-s22", "-s23", "-a13", "-a53", "phone", "oneplus")) return { icon: "📱", role: "Phone" };
-  if (has("ipad", "tab-s", "tablet")) return { icon: "📲", role: "Tablet" };
-  if (has("desktop", "-pc", "macbook", "laptop", "thinkpad")) return { icon: "💻", role: "Computer" };
-  if (has("ruijie", "tp-link", "tplink", "netgear", "ubiquiti", "asus", "eero", "router")) return { icon: "🛜", role: "Network gear" };
-  if (has("amazon")) return { icon: "🔊", role: "Amazon device" };
-  if (has("samsung")) return { icon: "📱", role: "Samsung device" };
-  return { icon: "🖥️", role: d.vendor && d.vendor !== "Unknown" ? d.vendor : "Unknown device" };
+  if (has("docker")) return { icon: "container", role: "Container host" };
+  if (has("reolink", "blink", "camera", "cam-", "wyze", "nest cam")) return { icon: "camera", role: "Camera" };
+  if (has("roku", "tcl", "-tv", "tv.", "firetv", "chromecast", "vizio", "appletv")) return { icon: "tv", role: "TV / streamer" };
+  if (has("xbox", "playstation", "-ps5", "nintendo")) return { icon: "gamepad", role: "Game console" };
+  if (has("echo", "alexa", "sonos", "homepod")) return { icon: "speaker", role: "Smart speaker" };
+  if (has("pixel", "galaxy", "iphone", "-s22", "-s23", "-a13", "-a53", "phone", "oneplus")) return { icon: "smartphone", role: "Phone" };
+  if (has("ipad", "tab-s", "tablet")) return { icon: "tablet", role: "Tablet" };
+  if (has("desktop", "-pc", "macbook", "laptop", "thinkpad")) return { icon: "monitor", role: "Computer" };
+  if (has("ruijie", "tp-link", "tplink", "netgear", "ubiquiti", "asus", "eero", "router")) return { icon: "wifi", role: "Network gear" };
+  if (has("amazon")) return { icon: "speaker", role: "Amazon device" };
+  if (has("samsung")) return { icon: "smartphone", role: "Samsung device" };
+  return { icon: "device", role: d.vendor && d.vendor !== "Unknown" ? d.vendor : "Unknown device" };
 }
 
 // --- data actions ----------------------------------------------------------
@@ -104,7 +132,7 @@ function renderDevices() {
 
   tbody.innerHTML = rows.map((d) => {
     const dot = d.online ? "online" : "offline";
-    const { icon, role } = classify(d);
+    const cls = classify(d);
     const isGw = d.ip === state.gateway;
     const displayName = d.label || d.hostname || (d.vendor && d.vendor !== "Unknown" ? d.vendor : "Unknown");
     const statusTag = isGw
@@ -118,12 +146,12 @@ function renderDevices() {
       <td><span class="dot ${dot}" title="${dot}"></span></td>
       <td>
         <div class="device-cell">
-          <span class="dev-icon">${icon}</span>
+          <span class="dev-icon ${isGw ? "gw" : ""}">${icon(cls.icon)}</span>
           <span class="dev-name">
             <span class="name">${esc(displayName)} ${statusTag}
-              <span class="edit" title="Rename" onclick="rename('${d.mac}', '${esc(d.label || "")}')">✎</span>
+              <span class="edit" title="Rename" onclick="rename('${d.mac}', '${esc(d.label || "")}')">${icon("pencil", "sm")}</span>
             </span>
-            <span class="role">${esc(role)}</span>
+            <span class="role">${esc(cls.role)}</span>
           </span>
         </div>
       </td>
@@ -182,17 +210,17 @@ async function loadAlerts(force) {
   state.lastAlertsJSON = json;
 
   if (!data.alerts.length) {
-    ul.innerHTML = '<li class="empty">No alerts — all quiet. 🟢</li>';
+    ul.innerHTML = `<li class="empty">${icon("check", "ok")} All quiet — no alerts.</li>`;
     return;
   }
   ul.innerHTML = data.alerts.map((a) => `
     <li class="alert ${a.acknowledged ? "ack" : ""}">
-      <span class="a-icon">${a.type === "new_device" ? "🆕" : "⚠️"}</span>
+      <span class="a-icon ${a.type === "new_device" ? "join" : "warn"}">${icon(a.type === "new_device" ? "join" : "alert")}</span>
       <div class="a-body">
         <div class="a-msg">${esc(a.message)}</div>
         <div class="a-when">${esc(fmtTime(a.created_at))}</div>
       </div>
-      ${a.acknowledged ? "" : `<button class="a-dismiss" title="Dismiss" onclick="ackAlert(${a.id})">✕</button>`}
+      ${a.acknowledged ? "" : `<button class="a-dismiss" title="Dismiss" onclick="ackAlert(${a.id})">${icon("x", "sm")}</button>`}
     </li>`).join("");
 }
 

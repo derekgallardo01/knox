@@ -52,8 +52,13 @@ header {
 }
 
 .brand { display: flex; align-items: center; gap: 0.8rem; }
-.brand .logo { font-size: 1.7rem; }
+.brand .logo { display: inline-flex; color: var(--accent); }
+.brand .logo svg { width: 26px; height: 26px; }
 .brand h1 { margin: 0; font-size: 1.25rem; letter-spacing: 0.2px; }
+
+/* --- Icons --------------------------------------------------------------- */
+.icon { width: 18px; height: 18px; display: inline-block; vertical-align: middle; flex: none; }
+.icon.sm { width: 14px; height: 14px; }
 .brand .sub { color: var(--muted); font-size: 0.82rem; }
 
 .live {
@@ -231,11 +236,22 @@ td.mono, .mono { font-family: ui-monospace, "Cascadia Code", "Consolas", monospa
 .dot.online { background: var(--online); box-shadow: 0 0 7px rgba(63,185,80,0.7); }
 .dot.offline { background: var(--offline); }
 
-.device-cell { display: flex; align-items: center; gap: 0.55rem; }
-.dev-icon { font-size: 1.05rem; width: 1.4rem; text-align: center; }
+.device-cell { display: flex; align-items: center; gap: 0.6rem; }
+.dev-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+  border-radius: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  color: var(--muted);
+  flex: none;
+}
+.dev-icon.gw { color: var(--accent); border-color: rgba(88,166,255,0.3); background: rgba(88,166,255,0.08); }
 .dev-name { display: flex; flex-direction: column; }
 .dev-name .name { display: flex; align-items: center; gap: 0.4rem; }
-.dev-name .name .edit { opacity: 0; cursor: pointer; color: var(--faint); font-size: 0.75rem; }
+.dev-name .name .edit { opacity: 0; cursor: pointer; color: var(--faint); display: inline-flex; }
 .device-cell:hover .edit { opacity: 1; }
 .dev-name .name .edit:hover { color: var(--accent); }
 .dev-name .role { color: var(--faint); font-size: 0.72rem; }
@@ -265,6 +281,7 @@ td.mono, .mono { font-family: ui-monospace, "Cascadia Code", "Consolas", monospa
 
 .muted { color: var(--muted); }
 .empty { color: var(--faint); text-align: center; padding: 2rem; }
+.empty .icon.ok { color: var(--online); width: 16px; height: 16px; margin-right: 0.4rem; }
 
 /* --- Alerts -------------------------------------------------------------- */
 .alerts-panel ul {
@@ -289,13 +306,15 @@ td.mono, .mono { font-family: ui-monospace, "Cascadia Code", "Consolas", monospa
   align-items: flex-start;
 }
 .alert.ack { opacity: 0.45; border-left-color: var(--offline); }
-.alert .a-icon { font-size: 1rem; line-height: 1.4; }
+.alert .a-icon { display: inline-flex; padding-top: 1px; color: var(--muted); }
+.alert .a-icon.join { color: var(--accent); }
+.alert .a-icon.warn { color: var(--warn); }
 .alert .a-body { flex: 1; min-width: 0; }
 .alert .a-msg { line-height: 1.35; }
 .alert .a-when { color: var(--faint); font-size: 0.72rem; margin-top: 0.15rem; }
 .alert .a-dismiss {
   background: none; border: none; color: var(--faint);
-  cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0.15rem;
+  cursor: pointer; padding: 0 0.15rem; display: inline-flex; align-items: center;
 }
 .alert .a-dismiss:hover { color: var(--danger); }
 
