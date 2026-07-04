@@ -166,6 +166,8 @@ class Store:
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
+        # Wait (don't crash) if another process/thread holds the write lock.
+        self.conn.execute("PRAGMA busy_timeout=10000")
         self.conn.executescript(SCHEMA)
         self._migrate()
         self.conn.commit()
@@ -654,7 +656,7 @@ class Store:
                 (mac.upper(), down_bps, up_bps, now_iso()),
             )
 
-    def rates_map(self, fresh_secs: int = 60) -> dict:
+    def rates_map(self, fresh_secs: int = 150) -> dict:
         """Latest per-MAC {down_bps, up_bps} that are newer than fresh_secs."""
         cutoff = (
             datetime.now(timezone.utc) - timedelta(seconds=fresh_secs)

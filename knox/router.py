@@ -187,33 +187,39 @@ class RouterPoller:
     def _poll(self) -> None:
         now = time.monotonic()
         for c in self.router.sta_list():
-            mac = (c.get("mac") or "").upper()
-            if not mac:
-                continue
             try:
-                up = int(c.get("up") or 0)
-                down = int(c.get("down") or 0)
-            except (TypeError, ValueError):
-                continue
-            ip = c.get("userIp") or None
-            host = c.get("hostName") or None
-            # Enrich inventory from the router's view (also a presence sighting).
-            self.store.upsert_device(mac, ip, host, None)
+                self._process_client(c, now)
+            except Exception:
+                log.debug("router client update failed", exc_info=True)
 
-            prev = self._prev.get(mac)
-            self._prev[mac] = (up, down, now)
-            if prev:
-                dt = now - prev[2]
-                if dt <= 0:
-                    continue
-                d_up = up - prev[0]
-                d_down = down - prev[1]
-                if d_up < 0:  # counter reset (device reconnected)
-                    d_up = up
-                if d_down < 0:
-                    d_down = down
-                self.store.add_bw_sample(mac, d_up + d_down)
-                self.store.set_rate(mac, int(d_down / dt), int(d_up / dt))
+    def _process_client(self, c: dict, now: float) -> None:
+        mac = (c.get("mac") or "").upper()
+        if not mac:
+            return
+        try:
+            up = int(c.get("up") or 0)
+            down = int(c.get("down") or 0)
+        except (TypeError, ValueError):
+            return
+        ip = c.get("userIp") or None
+        host = c.get("hostName") or None
+        # Enrich inventory from the router's view (also a presence sighting).
+        self.store.upsert_device(mac, ip, host, None)
+
+        prev = self._prev.get(mac)
+        self._prev[mac] = (up, down, now)
+        if prev:
+            dt = now - prev[2]
+            if dt <= 0:
+                return
+            d_up = up - prev[0]
+            d_down = down - prev[1]
+            if d_up < 0:  # counter reset (device reconnected)
+                d_up = up
+            if d_down < 0:
+                d_down = down
+            self.store.add_bw_sample(mac, d_up + d_down)
+            self.store.set_rate(mac, int(d_down / dt), int(d_up / dt))
 
 
 def available() -> bool:
