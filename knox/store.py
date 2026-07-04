@@ -8,8 +8,9 @@ UTC strings so they sort lexicographically and are human-readable.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, Iterator, Optional
 
 from . import config
@@ -120,6 +121,14 @@ CREATE TABLE IF NOT EXISTS bw_samples (
 );
 CREATE INDEX IF NOT EXISTS idx_bw_mac_at ON bw_samples(mac, at);
 
+-- Live per-device bandwidth rate (bytes/sec), from the router poller.
+CREATE TABLE IF NOT EXISTS rates (
+    mac      TEXT PRIMARY KEY,
+    down_bps INTEGER NOT NULL DEFAULT 0,
+    up_bps   INTEGER NOT NULL DEFAULT 0,
+    at       TEXT NOT NULL
+);
+
 -- IP -> hostname cache learned from observed DNS answers.
 CREATE TABLE IF NOT EXISTS dns_names (
     ip   TEXT PRIMARY KEY,
@@ -150,6 +159,7 @@ class Store:
 
     def __init__(self, path: Optional[str] = None):
         config.ensure_dirs()
+        self._lock = threading.RLock()
         self.path = str(path or config.DB_PATH)
         # check_same_thread=False so the Flask dashboard and monitor thread can
         # share one Store; we serialize writes through short-lived cursors.
@@ -181,12 +191,16 @@ class Store:
 
     @contextmanager
     def _write(self) -> Iterator[sqlite3.Cursor]:
-        cur = self.conn.cursor()
-        try:
-            yield cur
-            self.conn.commit()
-        finally:
-            cur.close()
+        # One connection is shared across threads (monitor, listener, DNS,
+        # router poller, Flask). Serialize writes so concurrent commits don't
+        # race ("cannot commit - no transaction is active").
+        with self._lock:
+            cur = self.conn.cursor()
+            try:
+                yield cur
+                self.conn.commit()
+            finally:
+                cur.close()
 
     # --- Devices & sightings -------------------------------------------------
 
@@ -630,6 +644,25 @@ class Store:
                 "INSERT INTO bw_samples (mac, at, bytes) VALUES (?, ?, ?)",
                 (mac.upper(), now_iso(), nbytes),
             )
+
+    def set_rate(self, mac: str, down_bps: int, up_bps: int) -> None:
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO rates (mac, down_bps, up_bps, at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(mac) DO UPDATE SET down_bps = excluded.down_bps, "
+                "up_bps = excluded.up_bps, at = excluded.at",
+                (mac.upper(), down_bps, up_bps, now_iso()),
+            )
+
+    def rates_map(self, fresh_secs: int = 60) -> dict:
+        """Latest per-MAC {down_bps, up_bps} that are newer than fresh_secs."""
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=fresh_secs)
+        ).replace(microsecond=0).isoformat()
+        rows = self.conn.execute(
+            "SELECT mac, down_bps, up_bps FROM rates WHERE at >= ?", (cutoff,)
+        ).fetchall()
+        return {r["mac"]: {"down_bps": r["down_bps"], "up_bps": r["up_bps"]} for r in rows}
 
     def bw_series(self, mac: str, since_iso: str) -> list[sqlite3.Row]:
         return self.conn.execute(

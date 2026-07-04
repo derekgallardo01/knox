@@ -102,10 +102,13 @@ def _row_get(row, key):
     return row[key] if key in row.keys() else None
 
 
-def _device_dict(row, port_counts: dict) -> dict:
+def _device_dict(row, port_counts: dict, rates: dict = None) -> dict:
     online = _age_seconds(row["last_seen"]) <= config.OFFLINE_AFTER
     owner = _row_get(row, "owner")
+    rate = (rates or {}).get(row["mac"], {})
     return {
+        "down_bps": rate.get("down_bps", 0),
+        "up_bps": rate.get("up_bps", 0),
         "mac": row["mac"],
         "ip": row["ip"],
         "hostname": row["hostname"],
@@ -213,7 +216,8 @@ def api_timeline(mac: str):
 def api_devices():
     store = get_store()
     counts = store.port_counts()
-    devices = [_device_dict(d, counts) for d in store.devices()]
+    rates = store.rates_map()
+    devices = [_device_dict(d, counts, rates) for d in store.devices()]
     return jsonify(
         {
             "devices": devices,

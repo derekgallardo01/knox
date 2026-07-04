@@ -146,6 +146,7 @@ NTFY_TOPIC = _env("KNOX_NTFY_TOPIC", "").strip()
 ROUTER_URL = _env("KNOX_ROUTER_URL", "http://192.168.110.1").rstrip("/")
 ROUTER_USER = _env("KNOX_ROUTER_USER", "").strip()
 ROUTER_PASSWORD = _env("KNOX_ROUTER_PASSWORD", "")
+ROUTER_POLL = int(_env("KNOX_ROUTER_POLL", "10"))  # seconds between client-list polls
 
 
 def ensure_dirs() -> None:

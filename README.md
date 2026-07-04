@@ -44,6 +44,10 @@ with nmap, and shows everything on a local web dashboard.
   alerts.
 - **Overview page** — network trends: devices-online over time, bandwidth,
   network-wide top DNS domains, and top talkers.
+- **Per-device bandwidth (router)** — polls a Reyee/Ruijie router's local API
+  for every client's up/down counters and shows a live **↓/↑ rate column** on
+  the dashboard — real per-device bandwidth on a normal switched LAN, no mirror
+  port. Set `KNOX_ROUTER_PASSWORD` (in a gitignored `.env`).
 - **OS fingerprint & actions** — nmap `-O` OS guess per device, Wake-on-LAN,
   and a blocked/watchlist flag. Devices can be given an **owner** + **notes**;
   randomized-MAC duplicates are grouped into one entry.
@@ -147,6 +151,7 @@ knox/
   detect.py       threat/anomaly detection (ARP-spoof, rogue DHCP, ports)
   traffic.py      IP flow/bandwidth capture + DNS-name resolution
   dnsserver.py    forwarding DNS resolver + per-device domain logging
+  router.py       Reyee/Ruijie router API -> per-device bandwidth
   vendors.py      MAC OUI -> vendor (+ hostname inference)
   scanner.py      nmap wrapper
   store.py        SQLite persistence (devices, sightings, ports, alerts, hints)

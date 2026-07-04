@@ -72,6 +72,13 @@ function ago(iso) {
   return Math.round(secs / 86400) + "d ago";
 }
 
+function fmtRate(bps) {
+  if (!bps) return "0";
+  if (bps < 1024) return bps + " B/s";
+  if (bps < 1024 * 1024) return (bps / 1024).toFixed(1) + " K";
+  return (bps / 1024 / 1024).toFixed(2) + " M";
+}
+
 // Guess a device type + icon from vendor/hostname/role. Cosmetic only.
 function classify(d) {
   if (d.ip && state.gateways.includes(d.ip)) return { icon: "router", role: "Router / gateway" };
@@ -242,6 +249,8 @@ function buildUnits(devs) {
 
 const unitOnline = (u) => u.members.some((m) => m.online);
 const unitPorts = (u) => u.members.reduce((s, m) => s + (m.ports || 0), 0);
+const unitDown = (u) => u.members.reduce((s, m) => s + (m.down_bps || 0), 0);
+const unitUp = (u) => u.members.reduce((s, m) => s + (m.up_bps || 0), 0);
 const unitLastSeen = (u) => u.members.reduce((a, m) => (m.last_seen > a ? m.last_seen : a), "");
 
 function sortUnits(units) {
@@ -253,6 +262,7 @@ function sortUnits(units) {
       case "ip": return (u.rep.ip || "").split(".").map((o) => o.padStart(3, "0")).join(".");
       case "vendor": return (u.rep.vendor || "").toLowerCase();
       case "ports": return unitPorts(u);
+      case "bw": return unitDown(u) + unitUp(u);
       default: return unitLastSeen(u);
     }
   };
@@ -317,13 +327,14 @@ function unitRow(u) {
       <td class="mono">${macCell}</td>
       <td>${esc(d.vendor || "—")}</td>
       <td class="num"><span class="${portCls}">${ports}</span></td>
+      <td class="num bw-cell">${(unitDown(u) + unitUp(u)) ? `<span class="bw-dn" title="download">↓${fmtRate(unitDown(u))}</span> <span class="bw-up" title="upload">↑${fmtRate(unitUp(u))}</span>` : '<span class="muted">—</span>'}</td>
       <td class="muted" title="${esc(fmtTime(lastSeen))}">${online ? ago(lastSeen) : "offline"}</td>
       <td class="row-actions">${trustBtn}<a class="row-btn" href="/device/${encodeURIComponent(d.mac)}">Details</a></td>
     </tr>`;
   let detailRow = "";
   if (open) {
     const inner = isGroup ? memberList(u) : renderDetail(d.mac);
-    detailRow = `<tr class="detail-row"><td colspan="9">${inner}</td></tr>`;
+    detailRow = `<tr class="detail-row"><td colspan="10">${inner}</td></tr>`;
   }
   return mainRow + detailRow;
 }
@@ -333,11 +344,11 @@ function renderDevices() {
   updateSortCarets();
   const filtered = state.devices.filter(matchesFilter);
   if (!state.devices.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No devices yet — a scan is running…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No devices yet — a scan is running…</td></tr>';
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No devices match this filter.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No devices match this filter.</td></tr>';
     return;
   }
   const units = sortUnits(buildUnits(filtered));
@@ -346,7 +357,7 @@ function renderDevices() {
   let html = online.map(unitRow).join("");
   if (offline.length) {
     html += `<tr class="offline-head ${state.offlineCollapsed ? "" : "open"}" data-offline>
-      <td colspan="9"><span class="chevron ${state.offlineCollapsed ? "" : "open"}">${icon("chevron")}</span>
+      <td colspan="10"><span class="chevron ${state.offlineCollapsed ? "" : "open"}">${icon("chevron")}</span>
       Offline (${offline.length})</td></tr>`;
     if (!state.offlineCollapsed) html += offline.map(unitRow).join("");
   }
@@ -588,7 +599,7 @@ document.querySelector("#devices thead").addEventListener("click", (e) => {
   if (state.sort.col === col) {
     state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
   } else {
-    state.sort = { col, dir: col === "last_seen" || col === "ports" ? "desc" : "asc" };
+    state.sort = { col, dir: col === "last_seen" || col === "ports" || col === "bw" ? "desc" : "asc" };
   }
   renderDevices();
 });

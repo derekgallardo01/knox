@@ -33,6 +33,7 @@ class Monitor:
         self._listener = None
         self._traffic = None
         self._dns = None
+        self._router = None
         self._last_nmap = 0.0
         # Track wall-clock via a monotonic counter seeded at start (Date/time
         # helpers in store use real UTC; here we only need relative spacing).
@@ -74,6 +75,13 @@ class Monitor:
             if not self._dns.start():
                 self._dns = None
 
+        if config.ROUTER_PASSWORD:
+            from .router import RouterPoller
+
+            self._router = RouterPoller(store=self.store)
+            if not self._router.start():
+                self._router = None
+
     def stop(self) -> None:
         self._stop.set()
         if self._listener:
@@ -82,6 +90,8 @@ class Monitor:
             self._traffic.stop()
         if self._dns:
             self._dns.stop()
+        if self._router:
+            self._router.stop()
         if self._thread:
             self._thread.join(timeout=5)
 

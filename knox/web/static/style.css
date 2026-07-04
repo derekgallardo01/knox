@@ -465,6 +465,10 @@ a.row-btn { text-decoration: none; display: inline-flex; align-items: center; }
 }
 .pill-ports.has { color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
 
+.bw-cell { white-space: nowrap; font-size: 0.82rem; }
+.bw-dn { color: var(--online); }
+.bw-up { color: var(--accent); }
+
 .muted { color: var(--muted); }
 .empty { color: var(--faint); text-align: center; padding: 2rem; }
 .empty .icon.ok { color: var(--online); width: 16px; height: 16px; margin-right: 0.4rem; }
