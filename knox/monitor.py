@@ -32,6 +32,7 @@ class Monitor:
         self._thread: Optional[threading.Thread] = None
         self._listener = None
         self._traffic = None
+        self._dns = None
         self._last_nmap = 0.0
         # Track wall-clock via a monotonic counter seeded at start (Date/time
         # helpers in store use real UTC; here we only need relative spacing).
@@ -66,12 +67,21 @@ class Monitor:
             if not self._traffic.start():
                 self._traffic = None
 
+        if config.DNS_SERVER:
+            from .dnsserver import DnsServer
+
+            self._dns = DnsServer(store=self.store)
+            if not self._dns.start():
+                self._dns = None
+
     def stop(self) -> None:
         self._stop.set()
         if self._listener:
             self._listener.stop()
         if self._traffic:
             self._traffic.stop()
+        if self._dns:
+            self._dns.stop()
         if self._thread:
             self._thread.join(timeout=5)
 

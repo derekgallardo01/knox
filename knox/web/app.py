@@ -269,6 +269,23 @@ def api_traffic(mac: str):
     )
 
 
+@app.route("/api/device/<mac>/domains")
+def api_domains(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    rows = store.top_domains(mac.upper(), 50)
+    return jsonify(
+        {
+            "domains": [
+                {"domain": r["domain"], "count": r["count"], "last_seen": r["last_seen"]}
+                for r in rows
+            ],
+            "dns_on": config.DNS_SERVER,
+        }
+    )
+
+
 @app.route("/api/alerts")
 def api_alerts():
     store = get_store()

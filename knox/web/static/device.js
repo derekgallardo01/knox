@@ -98,10 +98,28 @@ async function loadTraffic() {
     : '<div class="muted">No flows captured yet. Enable capture with KNOX_CAPTURE=1 (elevated).</div>';
 }
 
+async function loadDomains() {
+  const r = await (await fetch(`/api/device/${encodeURIComponent(MAC)}/domains`)).json();
+  if (r.error) return;
+  const panel = document.getElementById("domains-panel");
+  if (!r.dns_on && !r.domains.length) { panel.hidden = true; return; }
+  panel.hidden = false;
+  document.getElementById("domains-total").textContent =
+    r.domains.length ? `${r.domains.length} domains` : (r.dns_on ? "waiting for lookups…" : "");
+  document.getElementById("domains").innerHTML = r.domains.length
+    ? `<table class="ports-table"><thead><tr><th>Domain</th><th>Lookups</th><th>Last</th></tr></thead>
+       <tbody>${r.domains.map((d) => `<tr>
+         <td class="mono">${esc(d.domain)}</td>
+         <td>${d.count}</td>
+         <td class="muted">${esc(fmtTime(d.last_seen))}</td></tr>`).join("")}</tbody></table>`
+    : '<div class="muted">No lookups yet. Point this device\'s DNS at Knox (KNOX_DNS_SERVER=1).</div>';
+}
+
 function refresh() {
   loadDevice().catch(() => {});
   loadTimeline().catch(() => {});
   loadTraffic().catch(() => {});
+  loadDomains().catch(() => {});
 }
 
 document.getElementById("tl-range").addEventListener("click", (e) => {

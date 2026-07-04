@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS dns_names (
     host TEXT NOT NULL,
     at   TEXT NOT NULL
 );
+
+-- Per-device domain lookups seen by the Knox DNS resolver (aggregated).
+CREATE TABLE IF NOT EXISTS dns_hits (
+    owner      TEXT NOT NULL,   -- device MAC (preferred) or client IP
+    domain     TEXT NOT NULL,
+    count      INTEGER NOT NULL DEFAULT 0,
+    first_seen TEXT NOT NULL,
+    last_seen  TEXT NOT NULL,
+    PRIMARY KEY (owner, domain)
+);
+CREATE INDEX IF NOT EXISTS idx_dns_hits_owner ON dns_hits(owner);
 """
 
 
@@ -451,6 +462,35 @@ class Store:
             "SELECT host FROM dns_names WHERE ip = ?", (ip,)
         ).fetchone()
         return row["host"] if row else None
+
+    def device_by_ip(self, ip: str) -> Optional[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM devices WHERE ip = ? ORDER BY last_seen DESC LIMIT 1", (ip,)
+        ).fetchone()
+
+    def log_dns_query(self, client_ip: str, domain: str) -> str:
+        """Record a domain lookup by a device (resolved from client IP to MAC).
+
+        Returns the owner key used (MAC if known, else the client IP).
+        """
+        dev = self.device_by_ip(client_ip)
+        owner = dev["mac"] if dev else client_ip
+        ts = now_iso()
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO dns_hits (owner, domain, count, first_seen, last_seen) "
+                "VALUES (?, ?, 1, ?, ?) "
+                "ON CONFLICT(owner, domain) DO UPDATE SET count = count + 1, "
+                "last_seen = excluded.last_seen",
+                (owner, domain, ts, ts),
+            )
+        return owner
+
+    def top_domains(self, owner: str, limit: int = 50) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM dns_hits WHERE owner = ? ORDER BY count DESC, last_seen DESC LIMIT ?",
+            (owner.upper() if ":" in owner else owner, limit),
+        ).fetchall()
 
     def unacknowledged_count(self) -> int:
         row = self.conn.execute(

@@ -102,6 +102,16 @@ CAPTURE_FILTER = _env("KNOX_CAPTURE_FILTER", "ip")
 CAPTURE_FLUSH = int(_env("KNOX_CAPTURE_FLUSH", "10"))  # seconds between DB flushes
 
 
+# --- DNS-logging resolver (Pi-hole-lite) -----------------------------------
+# Off by default. When on, Knox runs a forwarding DNS server: point your
+# router's DHCP DNS at this host and every device's domain lookups are logged
+# per-device. Binding port 53 needs admin (use a high DNS_PORT to test).
+DNS_SERVER = _env("KNOX_DNS_SERVER", "0") == "1"
+DNS_BIND = _env("KNOX_DNS_BIND", "0.0.0.0")
+DNS_PORT = int(_env("KNOX_DNS_PORT", "53"))
+DNS_UPSTREAM = _env("KNOX_DNS_UPSTREAM", "1.1.1.1")
+
+
 # --- Push notifications (ntfy) ---------------------------------------------
 # Off by default. Set KNOX_NTFY_TOPIC to a topic name to get phone pushes when
 # a new/unknown device joins. Install the free ntfy app and subscribe to the

@@ -27,9 +27,13 @@ with nmap, and shows everything on a local web dashboard.
 - **Port & service scan** — nmap-based per-host scan for open ports, services,
   and versions.
 - **Traffic & bandwidth** (opt-in, `KNOX_CAPTURE=1`) — capture IP flows to see
-  what each device talks to (endpoints resolved to hostnames from observed DNS)
-  and per-device bandwidth over time. On a switched LAN this sees the capture
-  host's own traffic + broadcast; full coverage needs a mirror port / the Pi.
+  what each device talks to (endpoints resolved to hostnames from observed DNS
+  + TLS SNI) and per-device bandwidth over time. On a switched LAN this sees the
+  capture host's own traffic + broadcast; full coverage needs a mirror / the Pi.
+- **DNS-logging resolver** (opt-in, `KNOX_DNS_SERVER=1`) — a Pi-hole-lite:
+  Knox forwards DNS and logs every domain each device looks up. Point your
+  router's DHCP DNS at the Knox host to get per-device website history on *any*
+  network — no mirror port required. Binding port 53 needs admin.
 - **Multi-subnet** — scan several subnets at once (`KNOX_SUBNETS`).
 - **History & presence** — per-device detail page with a presence timeline +
   uptime %, a "who's home" strip (phones/tablets online), and internet/WAN
@@ -79,6 +83,9 @@ python -m knox listen
 
 # Capture traffic and print top talkers live (needs KNOX_CAPTURE for the daemon)
 python -m knox capture
+
+# Run the DNS-logging resolver live (use --port 15353 to test without admin)
+python -m knox dns
 
 # List devices recorded in the database
 python -m knox devices
@@ -130,6 +137,7 @@ knox/
   enrich.py       derive name/vendor/type from passive hints
   detect.py       threat/anomaly detection (ARP-spoof, rogue DHCP, ports)
   traffic.py      IP flow/bandwidth capture + DNS-name resolution
+  dnsserver.py    forwarding DNS resolver + per-device domain logging
   vendors.py      MAC OUI -> vendor (+ hostname inference)
   scanner.py      nmap wrapper
   store.py        SQLite persistence (devices, sightings, ports, alerts, hints)

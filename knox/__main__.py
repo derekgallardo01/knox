@@ -222,6 +222,46 @@ def cmd_capture(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dns(args: argparse.Namespace) -> int:
+    import time
+
+    from . import config
+    from .dnsserver import DnsServer
+    from .store import Store
+
+    if args.port:
+        config.DNS_PORT = args.port
+
+    store = Store()
+
+    def show(client_ip, owner, domain):
+        who = owner if owner != client_ip else client_ip
+        print(f"  {client_ip:<15} {who:<20} {domain}")
+
+    server = DnsServer(store=store, observer=show)
+    if not server.start():
+        print(
+            f"Could not bind DNS on {config.DNS_BIND}:{config.DNS_PORT}. "
+            "Port 53 needs Administrator; or pass --port 15353 to test.",
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        f"DNS resolver on {config.DNS_BIND}:{config.DNS_PORT} "
+        f"-> {config.DNS_UPSTREAM} (Ctrl+C to stop). Logging lookups...\n",
+        file=sys.stderr,
+    )
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.stop()
+        store.close()
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from .web.app import run_server
 
@@ -260,6 +300,10 @@ def build_parser() -> argparse.ArgumentParser:
     cap.add_argument("--interval", type=int, default=5, help="refresh seconds")
     cap.add_argument("--top", type=int, default=15, help="how many flows to show")
     cap.set_defaults(func=cmd_capture)
+
+    dns = sub.add_parser("dns", help="run the DNS-logging resolver live")
+    dns.add_argument("--port", type=int, help="bind port (default 53; use e.g. 15353 to test)")
+    dns.set_defaults(func=cmd_dns)
 
     v = sub.add_parser("serve", help="run monitor loop + web dashboard")
     v.add_argument("--no-monitor", action="store_true", help="dashboard only")
