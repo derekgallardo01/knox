@@ -5,6 +5,9 @@ data/
 *.db-shm
 *.log
 
+# Local secrets / config (router login, passwords) — never commit
+.env
+
 # Python
 __pycache__/
 *.py[cod]

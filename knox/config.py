@@ -10,10 +10,30 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_dotenv(path: Path) -> None:
+    """Load KEY=VALUE lines from a .env file into the environment (without
+    overriding vars already set). Keeps secrets (e.g. the router password) in a
+    gitignored file instead of the shell/source."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+    except OSError:
+        pass
+
+
+_load_dotenv(BASE_DIR / ".env")
+
 # --- Paths -----------------------------------------------------------------
 # Everything Knox writes (database + logs) lives in the project directory by
 # default so it's easy to find and gitignore.
-BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("KNOX_DATA_DIR", BASE_DIR / "data"))
 DB_PATH = Path(os.environ.get("KNOX_DB_PATH", DATA_DIR / "knox.db"))
 LOG_PATH = Path(os.environ.get("KNOX_LOG_PATH", DATA_DIR / "knox.log"))
@@ -118,6 +138,14 @@ DNS_UPSTREAM = _env("KNOX_DNS_UPSTREAM", "1.1.1.1")
 # same topic. Nothing is sent anywhere until a topic is configured.
 NTFY_SERVER = _env("KNOX_NTFY_SERVER", "https://ntfy.sh").rstrip("/")
 NTFY_TOPIC = _env("KNOX_NTFY_TOPIC", "").strip()
+
+
+# --- Router integration (per-device bandwidth) -----------------------------
+# Credentials for polling the router's local API (e.g. Reyee/LuCI) for
+# per-device bandwidth. Put these in a gitignored .env file, not the shell.
+ROUTER_URL = _env("KNOX_ROUTER_URL", "http://192.168.110.1").rstrip("/")
+ROUTER_USER = _env("KNOX_ROUTER_USER", "").strip()
+ROUTER_PASSWORD = _env("KNOX_ROUTER_PASSWORD", "")
 
 
 def ensure_dirs() -> None:
