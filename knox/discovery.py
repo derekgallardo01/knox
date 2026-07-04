@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from . import config, net
-from .vendors import vendor_for
+from .vendors import infer_vendor, vendor_for
 
 
 @dataclass
@@ -176,6 +176,8 @@ def discover(
             names = list(pool.map(lambda h: _resolve_hostname(h.ip), result))
         for host, name in zip(result, names):
             host.hostname = name
+            # Now that we have a hostname, upgrade the vendor for randomized MACs.
+            host.vendor = infer_vendor(host.mac, name)
 
     result.sort(key=lambda h: tuple(int(o) for o in h.ip.split(".")))
     return result

@@ -9,6 +9,8 @@ const state = {
   search: "",
   lastDevicesJSON: "",
   lastAlertsJSON: "",
+  expanded: new Set(), // MACs whose detail row is open
+  details: {},         // mac -> full /api/device payload (ports etc.)
 };
 
 // --- icons -----------------------------------------------------------------
@@ -31,6 +33,7 @@ const ICONS = {
   check: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  chevron: '<path d="m9 18 6-6-6-6"/>',
 };
 
 function icon(name, extra) {
@@ -73,8 +76,8 @@ function classify(d) {
   if (has("roku", "tcl", "-tv", "tv.", "firetv", "chromecast", "vizio", "appletv")) return { icon: "tv", role: "TV / streamer" };
   if (has("xbox", "playstation", "-ps5", "nintendo")) return { icon: "gamepad", role: "Game console" };
   if (has("echo", "alexa", "sonos", "homepod")) return { icon: "speaker", role: "Smart speaker" };
+  if (has("ipad", "tab-s", "tab-a", "tablet")) return { icon: "tablet", role: "Tablet" };
   if (has("pixel", "galaxy", "iphone", "-s22", "-s23", "-a13", "-a53", "phone", "oneplus")) return { icon: "smartphone", role: "Phone" };
-  if (has("ipad", "tab-s", "tablet")) return { icon: "tablet", role: "Tablet" };
   if (has("desktop", "-pc", "macbook", "laptop", "thinkpad")) return { icon: "monitor", role: "Computer" };
   if (has("ruijie", "tp-link", "tplink", "netgear", "ubiquiti", "asus", "eero", "router")) return { icon: "wifi", role: "Network gear" };
   if (has("amazon")) return { icon: "speaker", role: "Amazon device" };
@@ -102,6 +105,58 @@ async function rename(mac, current) {
   if (label === null) return;
   await post(`/api/device/${encodeURIComponent(mac)}/label`, { label });
   refresh(true);
+}
+
+// --- expand / detail -------------------------------------------------------
+
+async function loadDetail(mac) {
+  try {
+    const res = await fetch(`/api/device/${encodeURIComponent(mac)}`);
+    state.details[mac] = await res.json();
+  } catch (e) {
+    state.details[mac] = { port_list: [], error: true };
+  }
+  renderDevices();
+}
+
+function toggleExpand(mac) {
+  if (state.expanded.has(mac)) {
+    state.expanded.delete(mac);
+  } else {
+    state.expanded.add(mac);
+    if (!state.details[mac]) loadDetail(mac); // lazy fetch
+  }
+  renderDevices();
+}
+
+function renderDetail(mac) {
+  const det = state.details[mac];
+  if (!det) return '<div class="detail-body muted">Loading…</div>';
+  const ports = det.port_list || [];
+  const meta = `
+    <div class="detail-meta">
+      <span><b>MAC</b> <span class="mono">${esc(det.mac)}</span></span>
+      <span><b>Hostname</b> ${esc(det.hostname || "—")}</span>
+      <span><b>Vendor</b> ${esc(det.vendor || "—")}</span>
+      <span><b>First seen</b> ${esc(fmtTime(det.first_seen))}</span>
+    </div>`;
+  let portsHtml;
+  if (!ports.length) {
+    portsHtml = det.error
+      ? '<div class="muted">Could not load ports.</div>'
+      : '<div class="muted">No open ports found — device blocks scans, or a scan is still pending.</div>';
+  } else {
+    portsHtml = `<table class="ports-table">
+      <thead><tr><th>Port</th><th>Proto</th><th>Service</th><th>Version</th></tr></thead>
+      <tbody>${ports.map((p) => `<tr>
+        <td class="mono">${p.port}</td>
+        <td>${esc(p.proto)}</td>
+        <td>${esc(p.service || "—")}</td>
+        <td class="muted">${esc(p.version || "—")}</td>
+      </tr>`).join("")}</tbody>
+    </table>`;
+  }
+  return `<div class="detail-body">${meta}<div class="detail-ports"><b>Open ports / services</b>${portsHtml}</div></div>`;
 }
 
 // --- rendering -------------------------------------------------------------
@@ -134,6 +189,7 @@ function renderDevices() {
     const dot = d.online ? "online" : "offline";
     const cls = classify(d);
     const isGw = d.ip === state.gateway;
+    const open = state.expanded.has(d.mac);
     const displayName = d.label || d.hostname || (d.vendor && d.vendor !== "Unknown" ? d.vendor : "Unknown");
     const statusTag = isGw
       ? '<span class="tag gateway">gateway</span>'
@@ -142,10 +198,11 @@ function renderDevices() {
     const trustBtn = d.trusted
       ? `<button class="row-btn" onclick="trust('${d.mac}', false)">Untrust</button>`
       : `<button class="row-btn" onclick="trust('${d.mac}', true)">Trust</button>`;
-    return `<tr>
+    const mainRow = `<tr class="dev-row ${open ? "open" : ""}" data-mac="${d.mac}">
       <td><span class="dot ${dot}" title="${dot}"></span></td>
       <td>
         <div class="device-cell">
+          <span class="chevron ${open ? "open" : ""}">${icon("chevron")}</span>
           <span class="dev-icon ${isGw ? "gw" : ""}">${icon(cls.icon)}</span>
           <span class="dev-name">
             <span class="name">${esc(displayName)} ${statusTag}
@@ -162,6 +219,10 @@ function renderDevices() {
       <td class="muted" title="${esc(fmtTime(d.last_seen))}">${d.online ? ago(d.last_seen) : "offline"}</td>
       <td>${trustBtn}</td>
     </tr>`;
+    const detailRow = open
+      ? `<tr class="detail-row"><td colspan="8">${renderDetail(d.mac)}</td></tr>`
+      : "";
+    return mainRow + detailRow;
   }).join("");
 }
 
@@ -243,6 +304,13 @@ document.getElementById("filters").addEventListener("click", (e) => {
   btn.classList.add("active");
   state.filter = btn.dataset.filter;
   renderDevices();
+});
+
+// Row click expands per-device detail; clicks on buttons/rename are ignored.
+document.querySelector("#devices tbody").addEventListener("click", (e) => {
+  if (e.target.closest("button, .edit")) return;
+  const tr = e.target.closest("tr.dev-row");
+  if (tr) toggleExpand(tr.dataset.mac);
 });
 
 setInterval(() => refresh(false), REFRESH_MS);
