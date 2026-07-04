@@ -225,6 +225,8 @@ def api_devices():
             "total": len(devices),
             "untrusted": sum(1 for d in devices if not d["trusted"]),
             "open_ports": sum(d["ports"] for d in devices),
+            "total_down_bps": sum(d["down_bps"] for d in devices),
+            "total_up_bps": sum(d["up_bps"] for d in devices),
             "gateways": [net.gateway_ip(s) for s in net.configured_subnets()],
             "unacked_alerts": store.unacknowledged_count(),
             "wan": _wan_summary(store),

@@ -382,6 +382,13 @@ async function loadDevices(force) {
   document.getElementById("s-untrusted").textContent = data.untrusted;
   document.getElementById("s-ports").textContent = data.open_ports;
   document.getElementById("s-alerts").textContent = data.unacked_alerts;
+  const bwEl = document.getElementById("s-bw");
+  if (bwEl) {
+    const dn = data.total_down_bps || 0, up = data.total_up_bps || 0;
+    bwEl.innerHTML = (dn || up)
+      ? `<span class="bw-dn">↓${fmtRate(dn)}</span> <span class="bw-up">↑${fmtRate(up)}</span>`
+      : "—";
+  }
 
   updateWan(data.wan);
   updatePresence(data.devices);
