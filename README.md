@@ -155,6 +155,21 @@ knox/
   web/            Flask dashboard + JSON API
 ```
 
+## Run 24/7 (Windows auto-start)
+
+Start Knox automatically at boot via a scheduled task:
+
+```powershell
+# 1. Edit scripts\run-knox.ps1 to set your options (password, capture, DNS, subnets)
+# 2. Install the boot task (elevated):
+powershell -ExecutionPolicy Bypass -File scripts\install-service.ps1
+#    Remove it later with:  install-service.ps1 -Uninstall
+```
+
+The `KnoxMonitor` task runs at startup as SYSTEM with highest privileges (needed
+for raw ARP / nmap / the DNS resolver). Start it immediately without a reboot:
+`Start-ScheduledTask -TaskName KnoxMonitor`.
+
 ## Roadmap (out of scope for v1)
 
 - Live packet capture / traffic analysis and per-device bandwidth.
