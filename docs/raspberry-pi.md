@@ -42,9 +42,18 @@ network round-the-clock. This is the plan — follow it whenever you get a Pi.
 - **One instance only** — turn off the Windows `KnoxMonitor` task (or point each
   at its own DB) so two Knoxes don't fight. Simplest: let the Pi be the one
   that runs 24/7.
-- **DNS resolver on :53** — if you enable `KNOX_DNS_SERVER=1`, free port 53
-  first: `sudo systemctl disable --now systemd-resolved` (or set it not to
-  bind 53), then point your router's DHCP DNS at the Pi's IP.
+- **DNS resolver on :53 (per-device domain logging)** — this is the big
+  Pi-only win: log every domain each device looks up (see *where* devices talk,
+  not just how much). One command sets it up:
+  ```bash
+  sudo bash scripts/enable-dns-logging.sh   # frees port 53, sets KNOX_DNS_SERVER=1
+  sudo systemctl restart knox
+  ```
+  Then on your **router's DHCP/LAN settings**: set the **primary DNS to the Pi's
+  IP** and a **secondary DNS to `1.1.1.1`** (fallback for when the Pi reboots),
+  and renew leases. The dashboard **Overview** page then fills with per-device
+  top domains. (The script disables `systemd-resolved`'s stub listener and
+  points the Pi's own resolver at the upstream; see its header to undo.)
 - **Data/DB** lives in `knox/data/` on the SD card — back it up if you care about
   history; consider a USB SSD for heavy capture/bandwidth logging.
 - **Remote access**: install **Tailscale** on the Pi too (`curl -fsSL
