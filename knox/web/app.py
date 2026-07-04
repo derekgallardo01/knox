@@ -54,7 +54,7 @@ def _device_dict(row, port_counts: dict) -> dict:
 
 @app.route("/")
 def index():
-    return render_template("dashboard.html", subnet=net.detect_subnet())
+    return render_template("dashboard.html", subnet=", ".join(net.configured_subnets()))
 
 
 @app.route("/api/devices")
@@ -69,7 +69,7 @@ def api_devices():
             "total": len(devices),
             "untrusted": sum(1 for d in devices if not d["trusted"]),
             "open_ports": sum(d["ports"] for d in devices),
-            "gateway": net.gateway_ip(),
+            "gateways": [net.gateway_ip(s) for s in net.configured_subnets()],
             "unacked_alerts": store.unacknowledged_count(),
         }
     )

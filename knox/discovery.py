@@ -183,6 +183,26 @@ def discover(
     return result
 
 
+def discover_all(
+    subnets: Optional[list[str]] = None,
+    timeout: Optional[float] = None,
+    resolve_hostnames: bool = True,
+) -> list[Host]:
+    """Discover hosts across multiple subnets, merged and de-duplicated by MAC.
+
+    Defaults to the configured subnet list. Each subnet is swept independently
+    (ARP is link-local, so only directly-connected subnets yield results).
+    """
+    subnets = subnets or net.configured_subnets()
+    by_mac: dict[str, Host] = {}
+    for subnet in subnets:
+        for h in discover(subnet, timeout=timeout, resolve_hostnames=resolve_hostnames):
+            by_mac.setdefault(h.mac, h)
+    result = list(by_mac.values())
+    result.sort(key=lambda h: tuple(int(o) for o in h.ip.split(".")))
+    return result
+
+
 def using_fallback() -> bool:
     """True if discovery will use the no-Npcap fallback path."""
     return not _scapy_available()

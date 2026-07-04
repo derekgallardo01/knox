@@ -28,6 +28,13 @@ def _env(name: str, default: str) -> str:
 # Override with e.g. KNOX_SUBNET=192.168.1.0/24 if detection guesses wrong.
 SUBNET = _env("KNOX_SUBNET", "").strip()
 
+# Scan multiple subnets: a comma-separated list of CIDRs. Takes precedence over
+# SUBNET when set, e.g. KNOX_SUBNETS=192.168.110.0/24,192.168.111.0/24
+# NOTE: ARP discovery is link-local — a subnet is only scannable if this host is
+# directly connected to it (see `knox subnets`). Remote subnets behind a router
+# can't be ARP-enumerated.
+SUBNETS = [s.strip() for s in _env("KNOX_SUBNETS", "").split(",") if s.strip()]
+
 # Seconds to wait for ARP replies during a discovery sweep.
 ARP_TIMEOUT = float(_env("KNOX_ARP_TIMEOUT", "3"))
 

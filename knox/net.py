@@ -76,6 +76,55 @@ def detect_subnet() -> str:
     return str(net)
 
 
+def configured_subnets() -> list[str]:
+    """The list of subnets Knox should scan.
+
+    Priority: ``KNOX_SUBNETS`` (multi) > ``KNOX_SUBNET`` (single) > auto-detect.
+    """
+    if config.SUBNETS:
+        return config.SUBNETS
+    if config.SUBNET:
+        return [config.SUBNET]
+    return [detect_subnet()]
+
+
+def local_subnets() -> list[dict]:
+    """Directly-connected IPv4 subnets (from ``ipconfig``), i.e. what's ARP-scannable.
+
+    Returns dicts of ``{interface, ip, cidr}``. Skips loopback and APIPA
+    (169.254.x) addresses. Virtual adapters (Docker/WSL/VPN) are included but
+    flagged by their interface name so the caller can judge relevance.
+    """
+    try:
+        out = subprocess.run(
+            ["ipconfig"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+    results: list[dict] = []
+    iface = "?"
+    pending_ip: Optional[str] = None
+    for line in out.splitlines():
+        m = re.match(r"^(?P<name>[^\s].*adapter .*):\s*$", line, re.IGNORECASE)
+        if m:
+            iface = m.group("name").strip()
+            pending_ip = None
+            continue
+        ipm = re.search(r"IPv4 Address.*?:\s*([\d.]+)", line)
+        if ipm:
+            pending_ip = ipm.group(1)
+            continue
+        maskm = re.search(r"Subnet Mask.*?:\s*([\d.]+)", line)
+        if maskm and pending_ip:
+            ip = pending_ip
+            if not ip.startswith("169.254") and ip != "127.0.0.1":
+                net = ipaddress.IPv4Network(f"{ip}/{maskm.group(1)}", strict=False)
+                results.append({"interface": iface, "ip": ip, "cidr": str(net)})
+            pending_ip = None
+    return results
+
+
 def gateway_ip(subnet: Optional[str] = None) -> Optional[str]:
     """Guess the router address (``.1`` of the subnet). Informational only."""
     subnet = subnet or detect_subnet()

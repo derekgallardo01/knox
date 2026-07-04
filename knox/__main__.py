@@ -27,14 +27,14 @@ def _fmt_table(rows: list[list[str]], headers: list[str]) -> str:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    from .discovery import discover, using_fallback
+    from .discovery import discover_all, using_fallback
     from .store import Store
 
-    subnet = args.subnet or net.detect_subnet()
+    subnets = [args.subnet] if args.subnet else net.configured_subnets()
     mode = "fallback (ping + arp -a)" if using_fallback() else "scapy ARP sweep"
-    print(f"Scanning {subnet}  [{mode}]...\n", file=sys.stderr)
+    print(f"Scanning {', '.join(subnets)}  [{mode}]...\n", file=sys.stderr)
 
-    hosts = discover(subnet)
+    hosts = discover_all(subnets)
     if not hosts:
         print(
             "No devices found. On Windows, raw ARP needs an elevated terminal "
@@ -45,16 +45,41 @@ def cmd_scan(args: argparse.Namespace) -> int:
         return 1
 
     store = Store()
-    gw = net.gateway_ip(subnet)
+    gateways = {net.gateway_ip(s) for s in subnets}
     rows = []
     for h in hosts:
         is_new = store.upsert_device(h.mac, h.ip, h.hostname, h.vendor)
-        tag = "  (gateway)" if h.ip == gw else ("  (NEW)" if is_new else "")
+        tag = "  (gateway)" if h.ip in gateways else ("  (NEW)" if is_new else "")
         rows.append([h.ip, h.mac, h.hostname or "-", h.vendor, tag.strip()])
 
     print(_fmt_table(rows, ["IP", "MAC", "Hostname", "Vendor", ""]))
     print(f"\n{len(hosts)} device(s) found.", file=sys.stderr)
     store.close()
+    return 0
+
+
+def cmd_subnets(args: argparse.Namespace) -> int:
+    """Show which subnets are configured and which are directly scannable."""
+    configured = net.configured_subnets()
+    local = net.local_subnets()
+    local_cidrs = {l["cidr"] for l in local}
+
+    print("Configured to scan:")
+    for s in configured:
+        reach = "reachable (ARP)" if s in local_cidrs else "NOT directly connected"
+        print(f"  {s:<20} {reach}")
+
+    print("\nDirectly-connected subnets on this host (ARP-scannable):")
+    rows = [[l["cidr"], l["ip"], l["interface"]] for l in local]
+    if rows:
+        print(_fmt_table(rows, ["CIDR", "This host's IP", "Interface"]))
+    else:
+        print("  (none detected)")
+    print(
+        "\nTip: set KNOX_SUBNETS=cidr1,cidr2 to scan multiple. Only subnets this "
+        "host is directly connected to can be ARP-enumerated.",
+        file=sys.stderr,
+    )
     return 0
 
 
@@ -121,8 +146,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     s = sub.add_parser("scan", help="one-shot discovery of all LAN devices")
-    s.add_argument("--subnet", help="CIDR to scan, e.g. 192.168.1.0/24")
+    s.add_argument("--subnet", help="CIDR to scan (overrides configured subnets)")
     s.set_defaults(func=cmd_scan)
+
+    sn = sub.add_parser("subnets", help="show configured vs. directly-scannable subnets")
+    sn.set_defaults(func=cmd_subnets)
 
     d = sub.add_parser("devices", help="list devices recorded in the database")
     d.set_defaults(func=cmd_devices)

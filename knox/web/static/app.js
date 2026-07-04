@@ -4,7 +4,7 @@ const REFRESH_MS = 5000;
 
 const state = {
   devices: [],
-  gateway: null,
+  gateways: [],
   filter: "all",
   search: "",
   lastDevicesJSON: "",
@@ -68,7 +68,7 @@ function ago(iso) {
 
 // Guess a device type + icon from vendor/hostname/role. Cosmetic only.
 function classify(d) {
-  if (d.ip && d.ip === state.gateway) return { icon: "router", role: "Router / gateway" };
+  if (d.ip && state.gateways.includes(d.ip)) return { icon: "router", role: "Router / gateway" };
   const hay = `${d.hostname || ""} ${d.vendor || ""} ${d.label || ""}`.toLowerCase();
   const has = (...xs) => xs.some((x) => hay.includes(x));
   if (has("docker")) return { icon: "container", role: "Container host" };
@@ -188,7 +188,7 @@ function renderDevices() {
   tbody.innerHTML = rows.map((d) => {
     const dot = d.online ? "online" : "offline";
     const cls = classify(d);
-    const isGw = d.ip === state.gateway;
+    const isGw = state.gateways.includes(d.ip);
     const open = state.expanded.has(d.mac);
     const displayName = d.label || d.hostname || (d.vendor && d.vendor !== "Unknown" ? d.vendor : "Unknown");
     const statusTag = isGw
@@ -229,7 +229,7 @@ function renderDevices() {
 async function loadDevices(force) {
   const res = await fetch("/api/devices");
   const data = await res.json();
-  state.gateway = data.gateway;
+  state.gateways = data.gateways || [];
 
   document.getElementById("s-total").textContent = data.total;
   document.getElementById("s-online").textContent = data.online;

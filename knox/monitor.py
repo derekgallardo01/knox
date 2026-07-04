@@ -14,7 +14,7 @@ from typing import Optional
 
 from . import config, net
 from .alerts import AlertManager
-from .discovery import discover
+from .discovery import discover_all
 from .scanner import NmapUnavailable, scan_host
 from .store import Store
 
@@ -25,7 +25,7 @@ class Monitor:
     def __init__(self, store: Optional[Store] = None):
         self.store = store or Store()
         self.alerts = AlertManager(self.store)
-        self.subnet = net.detect_subnet()
+        self.subnets = net.configured_subnets()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._last_nmap = 0.0
@@ -41,7 +41,11 @@ class Monitor:
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, name="knox-monitor", daemon=True)
         self._thread.start()
-        log.info("monitor started on %s (interval=%ss)", self.subnet, config.SCAN_INTERVAL)
+        log.info(
+            "monitor started on %s (interval=%ss)",
+            ", ".join(self.subnets),
+            config.SCAN_INTERVAL,
+        )
 
     def stop(self) -> None:
         self._stop.set()
@@ -52,7 +56,7 @@ class Monitor:
 
     def tick(self) -> int:
         """Run one discovery+alert cycle. Returns the number of devices seen."""
-        hosts = discover(self.subnet)
+        hosts = discover_all(self.subnets)
         alerted = self.alerts.process(hosts)
         if alerted:
             log.info("new devices this cycle: %s", ", ".join(alerted))
