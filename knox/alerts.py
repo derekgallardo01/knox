@@ -21,7 +21,9 @@ from .store import Store
 class Notifier(Protocol):
     """Anything that can deliver an alert message."""
 
-    def notify(self, type_: str, message: str, mac: str | None = None) -> None: ...
+    def notify(
+        self, type_: str, message: str, mac: str | None = None, severity: str = "warning"
+    ) -> None: ...
 
 
 def _build_logger() -> logging.Logger:
@@ -46,8 +48,11 @@ class LogNotifier:
     def __init__(self) -> None:
         self.logger = _build_logger()
 
-    def notify(self, type_: str, message: str, mac: str | None = None) -> None:
-        self.logger.warning("[%s] %s", type_, message)
+    def notify(
+        self, type_: str, message: str, mac: str | None = None, severity: str = "warning"
+    ) -> None:
+        level = logging.ERROR if severity == "critical" else logging.WARNING
+        self.logger.log(level, "[%s/%s] %s", severity, type_, message)
 
 
 class NtfyNotifier:
@@ -61,12 +66,21 @@ class NtfyNotifier:
         self.topic = topic
         self.server = server.rstrip("/")
 
-    def notify(self, type_: str, message: str, mac: str | None = None) -> None:
+    _PRIORITY = {"critical": "urgent", "warning": "high", "info": "default"}
+
+    def notify(
+        self, type_: str, message: str, mac: str | None = None, severity: str = "warning"
+    ) -> None:
         title = "Knox: new device" if type_ == "new_device" else f"Knox: {type_}"
+        tags = "rotating_light" if severity == "critical" else "warning"
         req = urllib.request.Request(
             f"{self.server}/{self.topic}",
             data=message.encode("utf-8"),
-            headers={"Title": title, "Priority": "high", "Tags": "warning,satellite"},
+            headers={
+                "Title": title,
+                "Priority": self._PRIORITY.get(severity, "high"),
+                "Tags": tags,
+            },
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -88,13 +102,32 @@ class AlertManager:
         self.store = store
         self.notifiers = list(notifiers) if notifiers else default_notifiers()
 
-    def _emit(self, type_: str, message: str, mac: str | None = None) -> None:
-        self.store.add_alert(mac, type_, message)
+    def _emit(
+        self, type_: str, message: str, mac: str | None = None, severity: str = "warning"
+    ) -> None:
+        self.store.add_alert(mac, type_, message, severity)
         for n in self.notifiers:
             try:
-                n.notify(type_, message, mac)
+                n.notify(type_, message, mac, severity)
             except Exception:  # a broken notifier must not stop the others
                 logging.getLogger("knox.alerts").exception("notifier failed")
+
+    def raise_alert(
+        self,
+        type_: str,
+        message: str,
+        mac: str | None = None,
+        severity: str = "warning",
+        dedup: bool = True,
+    ) -> bool:
+        """Emit an alert, skipping it if an identical one already exists.
+
+        Returns True if the alert was emitted, False if de-duplicated away.
+        """
+        if dedup and self.store.alert_exists(type_, mac, message):
+            return False
+        self._emit(type_, message, mac, severity)
+        return True
 
     def process(self, hosts: Iterable[Host]) -> list[str]:
         """Persist hosts and raise alerts for newly-seen untrusted devices.

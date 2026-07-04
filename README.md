@@ -20,6 +20,10 @@ with nmap, and shows everything on a local web dashboard.
 - **New-device alerts** — mark your known devices as *trusted*; get an alert
   (dashboard, rotating log file, optional ntfy phone push) when an
   unrecognized device appears.
+- **Threat/anomaly detection** — ARP-spoofing (gateway MAC change, IP↔MAC
+  conflicts), rogue-DHCP servers, a known device opening a **new** port, and
+  exposed **risky services** (Telnet/RDP/SMB/databases). Alerts carry a
+  severity (info / warning / critical).
 - **Port & service scan** — nmap-based per-host scan for open ports, services,
   and versions.
 - **Multi-subnet** — scan several subnets at once (`KNOX_SUBNETS`).
@@ -111,6 +115,7 @@ knox/
   discovery.py    ARP sweep (scapy) + ping/arp-a fallback
   listener.py     passive sniffer (mDNS/SSDP/DHCP/NBNS/ARP) -> hints
   enrich.py       derive name/vendor/type from passive hints
+  detect.py       threat/anomaly detection (ARP-spoof, rogue DHCP, ports)
   vendors.py      MAC OUI -> vendor (+ hostname inference)
   scanner.py      nmap wrapper
   store.py        SQLite persistence (devices, sightings, ports, alerts, hints)

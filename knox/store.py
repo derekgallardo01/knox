@@ -64,6 +64,13 @@ CREATE TABLE IF NOT EXISTS hints (
     PRIMARY KEY (mac, source, key)
 );
 CREATE INDEX IF NOT EXISTS idx_hints_mac ON hints(mac);
+
+-- Detection baselines / learned state (e.g. gateway MAC, known DHCP servers).
+CREATE TABLE IF NOT EXISTS baseline (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -84,7 +91,16 @@ class Store:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        """Additive migrations for databases created by an earlier version."""
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(alerts)")}
+        if "severity" not in cols:
+            self.conn.execute(
+                "ALTER TABLE alerts ADD COLUMN severity TEXT NOT NULL DEFAULT 'warning'"
+            )
 
     def close(self) -> None:
         self.conn.close()
@@ -210,14 +226,31 @@ class Store:
 
     # --- Alerts --------------------------------------------------------------
 
-    def add_alert(self, mac: Optional[str], type_: str, message: str) -> int:
+    def add_alert(
+        self,
+        mac: Optional[str],
+        type_: str,
+        message: str,
+        severity: str = "warning",
+    ) -> int:
         with self._write() as cur:
             cur.execute(
-                "INSERT INTO alerts (mac, type, message, created_at) "
-                "VALUES (?, ?, ?, ?)",
-                (mac.upper() if mac else None, type_, message, now_iso()),
+                "INSERT INTO alerts (mac, type, message, created_at, severity) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (mac.upper() if mac else None, type_, message, now_iso(), severity),
             )
             return cur.lastrowid
+
+    def alert_exists(self, type_: str, mac: Optional[str], message: str) -> bool:
+        """True if an identical alert already exists (for de-duplication)."""
+        return (
+            self.conn.execute(
+                "SELECT 1 FROM alerts WHERE type = ? AND ifnull(mac,'') = ? "
+                "AND message = ? LIMIT 1",
+                (type_, mac.upper() if mac else "", message),
+            ).fetchone()
+            is not None
+        )
 
     def alerts(self, limit: int = 100, unacknowledged_only: bool = False) -> list[sqlite3.Row]:
         q = "SELECT * FROM alerts"
@@ -268,6 +301,23 @@ class Store:
         return self.conn.execute(
             "SELECT * FROM hints WHERE mac = ? ORDER BY source, key", (mac.upper(),)
         ).fetchall()
+
+    # --- Detection baselines -------------------------------------------------
+
+    def get_baseline(self, key: str) -> Optional[str]:
+        row = self.conn.execute(
+            "SELECT value FROM baseline WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else None
+
+    def set_baseline(self, key: str, value: str) -> None:
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO baseline (key, value, updated_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+                "updated_at = excluded.updated_at",
+                (key, value, now_iso()),
+            )
 
     def unacknowledged_count(self) -> int:
         row = self.conn.execute(

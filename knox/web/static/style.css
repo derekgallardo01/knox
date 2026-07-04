@@ -332,10 +332,17 @@ td.mono, .mono { font-family: ui-monospace, "Cascadia Code", "Consolas", monospa
   font-size: 0.85rem;
   align-items: flex-start;
 }
+.alert.sev-critical { border-left-color: var(--danger); }
+.alert.sev-warning { border-left-color: var(--warn); }
+.alert.sev-info { border-left-color: var(--accent); }
 .alert.ack { opacity: 0.45; border-left-color: var(--offline); }
 .alert .a-icon { display: inline-flex; padding-top: 1px; color: var(--muted); }
 .alert .a-icon.join { color: var(--accent); }
 .alert .a-icon.warn { color: var(--warn); }
+.alert .a-icon.crit { color: var(--danger); }
+.alert .a-type { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; font-weight: 600; }
+.alert.sev-critical .a-type { color: var(--danger); }
+.alert.sev-warning .a-type { color: var(--warn); }
 .alert .a-body { flex: 1; min-width: 0; }
 .alert .a-msg { line-height: 1.35; }
 .alert .a-when { color: var(--faint); font-size: 0.72rem; margin-top: 0.15rem; }

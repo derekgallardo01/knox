@@ -33,9 +33,15 @@ def _scapy():
 class PassiveListener:
     """Runs an AsyncSniffer and records hints/sightings to the store."""
 
-    def __init__(self, store: Optional[Store] = None, observer: Optional[Observer] = None):
+    def __init__(
+        self,
+        store: Optional[Store] = None,
+        observer: Optional[Observer] = None,
+        detect=None,
+    ):
         self.store = store or Store()
         self.observer = observer  # optional live callback (used by `knox listen`)
+        self.detect = detect  # optional DetectionEngine for ARP/DHCP anomalies
         self._sniffer = None
 
     # --- lifecycle -----------------------------------------------------------
@@ -119,6 +125,8 @@ class PassiveListener:
         if arp.op in (1, 2) and arp.hwsrc and arp.psrc and arp.psrc != "0.0.0.0":
             # sighting only (no name), via upsert
             self.store.upsert_device(arp.hwsrc.upper(), arp.psrc, vendor=vendor_for(arp.hwsrc))
+            if self.detect:
+                self.detect.on_arp(arp.hwsrc, arp.psrc)
 
     def _on_dhcp(self, scapy, pkt) -> None:
         mac, ip = self._src(scapy, pkt)
@@ -129,6 +137,7 @@ class PassiveListener:
                 mac = ":".join(f"{b:02X}" for b in chaddr)
         req_ip = None
         hostname = vclass = None
+        msg_type = None
         for opt in pkt[scapy.DHCP].options:
             if not isinstance(opt, tuple):
                 continue
@@ -139,11 +148,19 @@ class PassiveListener:
                 vclass = val.decode(errors="replace") if isinstance(val, bytes) else str(val)
             elif name == "requested_addr":
                 req_ip = str(val)
+            elif name == "message-type":
+                msg_type = val
         ip = ip if ip and ip != "0.0.0.0" else req_ip
         if hostname:
             self._record(mac, ip, "dhcp", "hostname", hostname)
         if vclass:
             self._record(mac, ip, "dhcp", "vendor_class", vclass)
+
+        # Offer (2) / ACK (5) come FROM a DHCP server — check it's the gateway.
+        if self.detect and msg_type in (2, 5):
+            server_mac, server_ip = self._src(scapy, pkt)
+            if server_ip:
+                self.detect.on_dhcp_server(server_ip, server_mac or "")
 
     def _on_mdns(self, scapy, pkt) -> None:
         mac, ip = self._src(scapy, pkt)

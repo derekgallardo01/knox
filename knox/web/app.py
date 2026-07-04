@@ -113,6 +113,7 @@ def api_alerts():
                     "message": r["message"],
                     "created_at": r["created_at"],
                     "acknowledged": bool(r["acknowledged"]),
+                    "severity": (r["severity"] if "severity" in r.keys() else "warning"),
                 }
                 for r in rows
             ]

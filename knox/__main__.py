@@ -137,6 +137,8 @@ def cmd_nmap(args: argparse.Namespace) -> int:
 def cmd_listen(args: argparse.Namespace) -> int:
     import time
 
+    from .alerts import AlertManager
+    from .detect import DetectionEngine
     from .listener import PassiveListener, available
     from .store import Store
 
@@ -149,16 +151,17 @@ def cmd_listen(args: argparse.Namespace) -> int:
         return 2
 
     store = Store()
+    detect = DetectionEngine(store, AlertManager(store))
 
     def show(mac, ip, source, key, value):
         print(f"  {source:<5} {key:<13} {mac}  {(ip or '-'):<15} {value}")
 
     print(
         "Passive listener running (Ctrl+C to stop). "
-        "Watching DHCP/mDNS/SSDP/NBNS/ARP...\n",
+        "Watching DHCP/mDNS/SSDP/NBNS/ARP + anomalies...\n",
         file=sys.stderr,
     )
-    listener = PassiveListener(store=store, observer=show)
+    listener = PassiveListener(store=store, observer=show, detect=detect)
     if not listener.start():
         print("Could not start listener — run the terminal as Administrator.", file=sys.stderr)
         return 2

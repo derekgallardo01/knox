@@ -289,15 +289,22 @@ async function loadAlerts(force) {
     ul.innerHTML = `<li class="empty">${icon("check", "ok")} All quiet — no alerts.</li>`;
     return;
   }
-  ul.innerHTML = data.alerts.map((a) => `
-    <li class="alert ${a.acknowledged ? "ack" : ""}">
-      <span class="a-icon ${a.type === "new_device" ? "join" : "warn"}">${icon(a.type === "new_device" ? "join" : "alert")}</span>
+  ul.innerHTML = data.alerts.map((a) => {
+    const sev = a.severity || "warning";
+    const isNew = a.type === "new_device";
+    const iconName = isNew ? "join" : (sev === "critical" ? "alert" : "alert");
+    const iconCls = isNew ? "join" : (sev === "critical" ? "crit" : "warn");
+    const label = (a.type || "").replace(/_/g, " ");
+    return `
+    <li class="alert sev-${esc(sev)} ${a.acknowledged ? "ack" : ""}">
+      <span class="a-icon ${iconCls}">${icon(iconName)}</span>
       <div class="a-body">
         <div class="a-msg">${esc(a.message)}</div>
-        <div class="a-when">${esc(fmtTime(a.created_at))}</div>
+        <div class="a-when"><span class="a-type">${esc(label)}</span> · ${esc(fmtTime(a.created_at))}</div>
       </div>
       ${a.acknowledged ? "" : `<button class="a-dismiss" title="Dismiss" onclick="ackAlert(${a.id})">${icon("x", "sm")}</button>`}
-    </li>`).join("");
+    </li>`;
+  }).join("");
 }
 
 function refresh(force) {

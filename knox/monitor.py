@@ -14,6 +14,7 @@ from typing import Optional
 
 from . import config, net
 from .alerts import AlertManager
+from .detect import DetectionEngine
 from .discovery import discover_all
 from .scanner import NmapUnavailable, scan_host
 from .store import Store
@@ -25,6 +26,7 @@ class Monitor:
     def __init__(self, store: Optional[Store] = None):
         self.store = store or Store()
         self.alerts = AlertManager(self.store)
+        self.detect = DetectionEngine(self.store, self.alerts)
         self.subnets = net.configured_subnets()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -51,7 +53,7 @@ class Monitor:
         if config.PASSIVE:
             from .listener import PassiveListener
 
-            self._listener = PassiveListener(store=self.store)
+            self._listener = PassiveListener(store=self.store, detect=self.detect)
             if not self._listener.start():
                 self._listener = None
                 log.info("continuing with active scanning only (no passive listener)")
@@ -83,8 +85,10 @@ class Monitor:
             if self._stop.is_set() or not dev["ip"]:
                 continue
             try:
+                old_ports = [dict(p) for p in self.store.ports_for(dev["mac"])]
                 ports = scan_host(dev["ip"])
                 self.store.replace_ports(dev["mac"], ports)
+                self.detect.on_ports(dev["mac"], dev["ip"], old_ports, ports)
             except NmapUnavailable as e:
                 log.warning("nmap unavailable, skipping port scans: %s", e)
                 return  # no point retrying every host this cycle
