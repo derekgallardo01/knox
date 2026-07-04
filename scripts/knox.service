@@ -1,0 +1,22 @@
+# Knox network monitor — systemd unit (Raspberry Pi / Linux).
+# Install:
+#   sudo cp scripts/knox.service /etc/systemd/system/knox.service
+#   # edit WorkingDirectory + ExecStart below if your path isn't /home/pi/knox
+#   sudo systemctl daemon-reload && sudo systemctl enable --now knox
+#   journalctl -u knox -f     # watch logs
+[Unit]
+Description=Knox home network security monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# root gives scapy raw sockets (ARP/capture) + lets the DNS resolver bind :53.
+User=root
+WorkingDirectory=/home/pi/knox
+ExecStart=/home/pi/knox/.venv/bin/python -m knox serve
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

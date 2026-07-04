@@ -164,6 +164,11 @@ knox/
   web/            Flask dashboard + JSON API
 ```
 
+## Run on a Raspberry Pi (always-on)
+
+See [docs/raspberry-pi.md](docs/raspberry-pi.md) — `scripts/install-pi.sh` +
+`scripts/knox.service` (systemd) get Knox running 24/7 on a Pi/Linux box.
+
 ## Run 24/7 (Windows auto-start)
 
 Start Knox automatically at boot via a scheduled task:
