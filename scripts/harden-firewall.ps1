@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-  Knox host hardening — block LAN access to sensitive local services.
+  Knox host hardening - block LAN access to sensitive local services.
 
 .DESCRIPTION
   Adds inbound Windows Firewall BLOCK rules (grouped "Knox Hardening") that
   stop other devices on your LAN from reaching PostgreSQL and SMB on this PC.
   Scoped to the LAN subnet only, so loopback (localhost) and Docker/WSL
-  virtual networks keep working — local apps and containers are unaffected.
+  virtual networks keep working - local apps and containers are unaffected.
 
   Windows Firewall block rules take precedence over allow rules, so these
   override the built-in "File and Printer Sharing" allow rules for LAN sources.
@@ -25,6 +25,7 @@
 [CmdletBinding()]
 param(
   [string]$LanCidr = "",
+  [string]$VpnInterface = "NordLynx",
   [switch]$Undo
 )
 
@@ -71,6 +72,20 @@ foreach ($r in $rules) {
   New-NetFirewallRule -DisplayName $r.Name -Group $group -Direction Inbound -Action Block `
     -Protocol TCP -LocalPort $r.Port -RemoteAddress $LanCidr -Profile Any -Enabled True | Out-Null
   Log "Added: $($r.Name)  (TCP $($r.Port) from $LanCidr)"
+}
+
+# --- VPN interface: block SMB on the VPN adapter (e.g. NordLynx) ---
+# SMB has no business listening on a VPN tunnel. Scoped by interface, not
+# address, so it applies whenever that adapter is up.
+if ($VpnInterface -and (Get-NetAdapter -Name $VpnInterface -ErrorAction SilentlyContinue)) {
+  foreach ($p in 445, 139) {
+    New-NetFirewallRule -DisplayName "Knox: Block SMB $p on VPN ($VpnInterface)" -Group $group `
+      -Direction Inbound -Action Block -Protocol TCP -LocalPort $p `
+      -InterfaceAlias $VpnInterface -Profile Any -Enabled True | Out-Null
+    Log "Added: Knox: Block SMB $p on VPN ($VpnInterface)"
+  }
+} elseif ($VpnInterface) {
+  Log "VPN interface '$VpnInterface' not found - skipping VPN SMB rules."
 }
 
 Log "Done. Active '$group' rules:"
