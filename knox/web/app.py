@@ -68,6 +68,9 @@ def api_devices():
             "online": sum(1 for d in devices if d["online"]),
             "total": len(devices),
             "untrusted": sum(1 for d in devices if not d["trusted"]),
+            "open_ports": sum(d["ports"] for d in devices),
+            "gateway": net.gateway_ip(),
+            "unacked_alerts": store.unacknowledged_count(),
         }
     )
 
@@ -123,10 +126,32 @@ def api_trust(mac: str):
     return jsonify({"ok": True, "mac": mac.upper(), "trusted": bool(trusted)})
 
 
+@app.route("/api/device/<mac>/label", methods=["POST"])
+def api_label(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    label = (request.json.get("label") if request.is_json else "") or ""
+    store.set_label(mac, label.strip())
+    return jsonify({"ok": True, "mac": mac.upper(), "label": label.strip()})
+
+
+@app.route("/api/devices/trust-all", methods=["POST"])
+def api_trust_all():
+    n = get_store().trust_all()
+    return jsonify({"ok": True, "trusted": n})
+
+
 @app.route("/api/alerts/<int:alert_id>/ack", methods=["POST"])
 def api_ack(alert_id: int):
     get_store().acknowledge_alert(alert_id)
     return jsonify({"ok": True})
+
+
+@app.route("/api/alerts/ack-all", methods=["POST"])
+def api_ack_all():
+    n = get_store().acknowledge_all()
+    return jsonify({"ok": True, "dismissed": n})
 
 
 def run_server(start_monitor: bool = True) -> None:

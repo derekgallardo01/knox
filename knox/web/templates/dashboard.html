@@ -8,30 +8,83 @@
 </head>
 <body>
   <header>
-    <h1>🛡️ Knox</h1>
-    <div class="meta">
-      <span>subnet <code>{{ subnet }}</code></span>
-      <span id="summary" class="summary">—</span>
-      <span class="refresh">auto-refresh <span id="countdown">5</span>s</span>
+    <div class="brand">
+      <span class="logo">🛡️</span>
+      <div>
+        <h1>Knox</h1>
+        <span class="sub">subnet <code>{{ subnet }}</code></span>
+      </div>
+    </div>
+    <div class="live" title="Auto-refreshing">
+      <span class="pulse"></span> live
     </div>
   </header>
 
+  <!-- Baseline banner: appears when there are untrusted devices -->
+  <div id="baseline" class="banner" hidden>
+    <div>
+      <strong id="baseline-count">0</strong> device(s) on your network aren't marked as trusted yet.
+      Trust the ones you recognize to set a baseline — then Knox only alerts you about
+      <em>new</em> arrivals.
+    </div>
+    <button class="btn primary" onclick="trustAll()">Trust all current devices</button>
+  </div>
+
+  <section class="stats">
+    <div class="stat">
+      <span class="stat-value" id="s-total">—</span>
+      <span class="stat-label">Devices</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value online" id="s-online">—</span>
+      <span class="stat-label">Online now</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value warn" id="s-untrusted">—</span>
+      <span class="stat-label">Untrusted</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="s-ports">—</span>
+      <span class="stat-label">Open ports</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value danger" id="s-alerts">—</span>
+      <span class="stat-label">New alerts</span>
+    </div>
+  </section>
+
   <main>
-    <section>
-      <h2>Devices</h2>
-      <table id="devices">
-        <thead>
-          <tr>
-            <th></th><th>IP</th><th>MAC</th><th>Name</th><th>Vendor</th>
-            <th>Ports</th><th>First seen</th><th>Last seen</th><th></th>
-          </tr>
-        </thead>
-        <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
-      </table>
+    <section class="panel devices-panel">
+      <div class="panel-head">
+        <h2>Devices</h2>
+        <div class="controls">
+          <input id="search" type="search" placeholder="Search IP, MAC, name, vendor…" />
+          <div class="chips" id="filters">
+            <button class="chip active" data-filter="all">All</button>
+            <button class="chip" data-filter="online">Online</button>
+            <button class="chip" data-filter="offline">Offline</button>
+            <button class="chip" data-filter="untrusted">Untrusted</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="devices">
+          <thead>
+            <tr>
+              <th></th><th>Device</th><th>IP</th><th>MAC</th>
+              <th>Vendor</th><th class="num">Ports</th><th>Last seen</th><th></th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
     </section>
 
-    <section>
-      <h2>Alerts</h2>
+    <section class="panel alerts-panel">
+      <div class="panel-head">
+        <h2>Alerts <span id="alert-badge" class="badge" hidden>0</span></h2>
+        <button class="btn ghost" id="dismiss-all" onclick="ackAll()" hidden>Dismiss all</button>
+      </div>
       <ul id="alerts"><li class="empty">Loading…</li></ul>
     </section>
   </main>

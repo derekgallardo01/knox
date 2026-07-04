@@ -134,6 +134,12 @@ class Store:
                 (1 if trusted else 0, mac.upper()),
             )
 
+    def trust_all(self) -> int:
+        """Mark every known device as trusted (baseline the current network)."""
+        with self._write() as cur:
+            cur.execute("UPDATE devices SET trusted = 1 WHERE trusted = 0")
+            return cur.rowcount
+
     def set_label(self, mac: str, label: str) -> None:
         with self._write() as cur:
             cur.execute(
@@ -207,3 +213,15 @@ class Store:
             cur.execute(
                 "UPDATE alerts SET acknowledged = 1 WHERE id = ?", (alert_id,)
             )
+
+    def acknowledge_all(self) -> int:
+        """Dismiss every outstanding alert."""
+        with self._write() as cur:
+            cur.execute("UPDATE alerts SET acknowledged = 1 WHERE acknowledged = 0")
+            return cur.rowcount
+
+    def unacknowledged_count(self) -> int:
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM alerts WHERE acknowledged = 0"
+        ).fetchone()
+        return row["n"] if row else 0
