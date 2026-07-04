@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knox — Network Monitor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <h1>🛡️ Knox</h1>
+    <div class="meta">
+      <span>subnet <code>{{ subnet }}</code></span>
+      <span id="summary" class="summary">—</span>
+      <span class="refresh">auto-refresh <span id="countdown">5</span>s</span>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>Devices</h2>
+      <table id="devices">
+        <thead>
+          <tr>
+            <th></th><th>IP</th><th>MAC</th><th>Name</th><th>Vendor</th>
+            <th>Ports</th><th>First seen</th><th>Last seen</th><th></th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Alerts</h2>
+      <ul id="alerts"><li class="empty">Loading…</li></ul>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
