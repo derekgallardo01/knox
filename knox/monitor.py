@@ -31,6 +31,7 @@ class Monitor:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._listener = None
+        self._traffic = None
         self._last_nmap = 0.0
         # Track wall-clock via a monotonic counter seeded at start (Date/time
         # helpers in store use real UTC; here we only need relative spacing).
@@ -58,10 +59,19 @@ class Monitor:
                 self._listener = None
                 log.info("continuing with active scanning only (no passive listener)")
 
+        if config.CAPTURE:
+            from .traffic import TrafficSniffer
+
+            self._traffic = TrafficSniffer(store=self.store)
+            if not self._traffic.start():
+                self._traffic = None
+
     def stop(self) -> None:
         self._stop.set()
         if self._listener:
             self._listener.stop()
+        if self._traffic:
+            self._traffic.stop()
         if self._thread:
             self._thread.join(timeout=5)
 

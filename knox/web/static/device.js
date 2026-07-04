@@ -58,7 +58,51 @@ async function loadTimeline() {
     .map((on) => `<span class="tl-cell ${on ? "on" : "off"}"></span>`).join("");
 }
 
-function refresh() { loadDevice().catch(() => {}); loadTimeline().catch(() => {}); }
+function fmtBytes(n) {
+  if (n < 1024) return n + " B";
+  const u = ["KB", "MB", "GB", "TB"];
+  let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(1) + " " + u[i];
+}
+
+function sparkline(series) {
+  if (!series.length) return '<div class="muted">No bandwidth samples yet.</div>';
+  const vals = series.map((s) => s.bytes);
+  const max = Math.max(...vals, 1);
+  const w = 600, h = 60, step = w / Math.max(series.length - 1, 1);
+  const pts = vals.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="spark">
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+  </svg>`;
+}
+
+async function loadTraffic() {
+  const t = await (await fetch(`/api/device/${encodeURIComponent(MAC)}/traffic`)).json();
+  if (t.error) return;
+  const panel = document.getElementById("traffic-panel");
+  // Show the panel if capture is on OR we already have data.
+  if (!t.capture_on && !t.flows.length) { panel.hidden = true; return; }
+  panel.hidden = false;
+  document.getElementById("traffic-total").textContent =
+    t.total_bytes ? `${fmtBytes(t.total_bytes)} total` : (t.capture_on ? "capturing…" : "");
+  document.getElementById("bw-spark").innerHTML = sparkline(t.series);
+  document.getElementById("flows").innerHTML = t.flows.length
+    ? `<table class="ports-table"><thead><tr><th>Endpoint</th><th>Port</th><th>Proto</th><th>Data</th><th>Pkts</th></tr></thead>
+       <tbody>${t.flows.map((f) => `<tr>
+         <td class="mono">${esc(f.remote_host || f.remote_ip)}</td>
+         <td class="mono">${f.dport || "—"}</td>
+         <td>${esc(f.proto)}</td>
+         <td>${fmtBytes(f.bytes)}</td>
+         <td class="muted">${f.packets}</td></tr>`).join("")}</tbody></table>`
+    : '<div class="muted">No flows captured yet. Enable capture with KNOX_CAPTURE=1 (elevated).</div>';
+}
+
+function refresh() {
+  loadDevice().catch(() => {});
+  loadTimeline().catch(() => {});
+  loadTraffic().catch(() => {});
+}
 
 document.getElementById("tl-range").addEventListener("click", (e) => {
   const b = e.target.closest(".chip");

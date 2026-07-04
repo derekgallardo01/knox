@@ -92,6 +92,16 @@ SNIFF_FILTER = _env(
 )
 
 
+# --- Traffic capture (M4) --------------------------------------------------
+# Off by default (heavier). When on, capture IP flows to profile per-device
+# bandwidth + what each device talks to. On a switched LAN this mainly sees
+# THIS host's traffic + broadcast; full coverage needs a mirror port / running
+# on the router or a Pi. Needs Npcap + admin.
+CAPTURE = _env("KNOX_CAPTURE", "0") == "1"
+CAPTURE_FILTER = _env("KNOX_CAPTURE_FILTER", "ip")
+CAPTURE_FLUSH = int(_env("KNOX_CAPTURE_FLUSH", "10"))  # seconds between DB flushes
+
+
 # --- Push notifications (ntfy) ---------------------------------------------
 # Off by default. Set KNOX_NTFY_TOPIC to a topic name to get phone pushes when
 # a new/unknown device joins. Install the free ntfy app and subscribe to the

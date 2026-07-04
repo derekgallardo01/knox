@@ -241,6 +241,34 @@ def api_device(mac: str):
     return jsonify(data)
 
 
+@app.route("/api/device/<mac>/traffic")
+def api_traffic(mac: str):
+    store = get_store()
+    if not store.get_device(mac):
+        return jsonify({"error": "not found"}), 404
+    flows = [
+        {
+            "remote_ip": r["remote_ip"],
+            "remote_host": r["remote_host"],
+            "proto": r["proto"],
+            "dport": r["dport"],
+            "bytes": r["bytes"],
+            "packets": r["packets"],
+        }
+        for r in store.top_flows(mac, 25)
+    ]
+    since = (datetime.now(timezone.utc) - timedelta(hours=6)).replace(microsecond=0).isoformat()
+    series = [{"at": r["at"], "bytes": r["bytes"]} for r in store.bw_series(mac, since)]
+    return jsonify(
+        {
+            "flows": flows,
+            "series": series,
+            "total_bytes": store.device_bytes(mac),
+            "capture_on": config.CAPTURE,
+        }
+    )
+
+
 @app.route("/api/alerts")
 def api_alerts():
     store = get_store()

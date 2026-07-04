@@ -176,6 +176,52 @@ def cmd_listen(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_capture(args: argparse.Namespace) -> int:
+    import time
+
+    from .store import Store
+    from .traffic import TrafficSniffer, available
+
+    if not available():
+        print(
+            "Traffic capture unavailable: scapy/Npcap not usable. "
+            "Install Npcap and run as Administrator.",
+            file=sys.stderr,
+        )
+        return 2
+
+    store = Store()
+    sniffer = TrafficSniffer(store=store)
+    if not sniffer.start():
+        print("Could not start capture — run the terminal as Administrator.", file=sys.stderr)
+        return 2
+    print(
+        "Capturing traffic (Ctrl+C to stop). Top talkers refresh every "
+        f"{args.interval}s...\n",
+        file=sys.stderr,
+    )
+    try:
+        while True:
+            time.sleep(args.interval)
+            rows = store.conn.execute(
+                "SELECT mac, remote_ip, remote_host, proto, dport, bytes "
+                "FROM flows ORDER BY bytes DESC LIMIT ?",
+                (args.top,),
+            ).fetchall()
+            print(f"--- top {args.top} flows ---")
+            for r in rows:
+                host = r["remote_host"] or r["remote_ip"]
+                kb = r["bytes"] / 1024
+                print(f"  {r['mac']}  ->  {host}:{r['dport']}/{r['proto']}  {kb:,.1f} KB")
+            print()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sniffer.stop()
+        store.close()
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from .web.app import run_server
 
@@ -209,6 +255,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     li = sub.add_parser("listen", help="run the passive listener live (auto-naming)")
     li.set_defaults(func=cmd_listen)
+
+    cap = sub.add_parser("capture", help="capture traffic; print top talkers live")
+    cap.add_argument("--interval", type=int, default=5, help="refresh seconds")
+    cap.add_argument("--top", type=int, default=15, help="how many flows to show")
+    cap.set_defaults(func=cmd_capture)
 
     v = sub.add_parser("serve", help="run monitor loop + web dashboard")
     v.add_argument("--no-monitor", action="store_true", help="dashboard only")

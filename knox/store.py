@@ -78,6 +78,36 @@ CREATE TABLE IF NOT EXISTS wan_events (
     up INTEGER NOT NULL,
     at TEXT NOT NULL
 );
+
+-- Per-device traffic flows: bytes/packets to each remote endpoint (M4).
+CREATE TABLE IF NOT EXISTS flows (
+    mac         TEXT NOT NULL,
+    remote_ip   TEXT NOT NULL,
+    remote_host TEXT,
+    proto       TEXT NOT NULL,
+    dport       INTEGER NOT NULL,
+    bytes       INTEGER NOT NULL DEFAULT 0,
+    packets     INTEGER NOT NULL DEFAULT 0,
+    first_seen  TEXT NOT NULL,
+    last_seen   TEXT NOT NULL,
+    PRIMARY KEY (mac, remote_ip, proto, dport)
+);
+CREATE INDEX IF NOT EXISTS idx_flows_mac ON flows(mac);
+
+-- Per-device bandwidth time-series (bytes per flush interval) for sparklines.
+CREATE TABLE IF NOT EXISTS bw_samples (
+    mac   TEXT NOT NULL,
+    at    TEXT NOT NULL,
+    bytes INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bw_mac_at ON bw_samples(mac, at);
+
+-- IP -> hostname cache learned from observed DNS answers.
+CREATE TABLE IF NOT EXISTS dns_names (
+    ip   TEXT PRIMARY KEY,
+    host TEXT NOT NULL,
+    at   TEXT NOT NULL
+);
 """
 
 
@@ -355,6 +385,72 @@ class Store:
         return self.conn.execute(
             "SELECT up, at FROM wan_events WHERE at >= ? ORDER BY at", (since_iso,)
         ).fetchall()
+
+    # --- Traffic (flows / bandwidth / DNS names) ----------------------------
+
+    def add_flow(
+        self,
+        mac: str,
+        remote_ip: str,
+        proto: str,
+        dport: int,
+        nbytes: int,
+        npackets: int,
+        remote_host: Optional[str] = None,
+    ) -> None:
+        """Accumulate bytes/packets for a (device, remote, proto, port) flow."""
+        mac = mac.upper()
+        ts = now_iso()
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO flows (mac, remote_ip, remote_host, proto, dport, "
+                "bytes, packets, first_seen, last_seen) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(mac, remote_ip, proto, dport) DO UPDATE SET "
+                "bytes = bytes + excluded.bytes, packets = packets + excluded.packets, "
+                "remote_host = COALESCE(excluded.remote_host, remote_host), "
+                "last_seen = excluded.last_seen",
+                (mac, remote_ip, remote_host, proto, dport, nbytes, npackets, ts, ts),
+            )
+
+    def top_flows(self, mac: str, limit: int = 20) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM flows WHERE mac = ? ORDER BY bytes DESC LIMIT ?",
+            (mac.upper(), limit),
+        ).fetchall()
+
+    def device_bytes(self, mac: str) -> int:
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(bytes),0) AS b FROM flows WHERE mac = ?", (mac.upper(),)
+        ).fetchone()
+        return row["b"] if row else 0
+
+    def add_bw_sample(self, mac: str, nbytes: int) -> None:
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO bw_samples (mac, at, bytes) VALUES (?, ?, ?)",
+                (mac.upper(), now_iso(), nbytes),
+            )
+
+    def bw_series(self, mac: str, since_iso: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT at, bytes FROM bw_samples WHERE mac = ? AND at >= ? ORDER BY at",
+            (mac.upper(), since_iso),
+        ).fetchall()
+
+    def set_dns_name(self, ip: str, host: str) -> None:
+        with self._write() as cur:
+            cur.execute(
+                "INSERT INTO dns_names (ip, host, at) VALUES (?, ?, ?) "
+                "ON CONFLICT(ip) DO UPDATE SET host = excluded.host, at = excluded.at",
+                (ip, host, now_iso()),
+            )
+
+    def get_dns_name(self, ip: str) -> Optional[str]:
+        row = self.conn.execute(
+            "SELECT host FROM dns_names WHERE ip = ?", (ip,)
+        ).fetchone()
+        return row["host"] if row else None
 
     def unacknowledged_count(self) -> int:
         row = self.conn.execute(

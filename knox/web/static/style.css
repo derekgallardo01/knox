@@ -317,6 +317,11 @@ a.row-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .timeline-axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 0.72rem; margin-top: 0.4rem; }
 .stat-value .online { color: var(--online); }
 
+/* --- Device page: traffic ------------------------------------------------ */
+.traffic-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+#bw-spark .spark { width: 100%; height: 60px; background: var(--bg-elev); border-radius: 6px; }
+#traffic-total { font-size: 0.8rem; }
+
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
 .dot.online { background: var(--online); box-shadow: 0 0 7px rgba(63,185,80,0.7); }
 .dot.offline { background: var(--offline); }
